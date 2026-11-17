@@ -1,8 +1,9 @@
 /* ReTerm shares ReNote's look: paper background, ink grey. Nothing on the page but the terminal. */
 
 :root {
-	/* where the conversation is: between the side buttons (as ReSurf's page), or the whole window */
-	--area: calc(6.25% + 24px) calc(6.25% + 80px);
+	/* where the conversation is: between the side buttons, a column 760 px wide at most in the middle,
+	   or the whole window (FULL) */
+	--area: calc(6.25% + 24px) max(calc(6.25% + 80px), calc(50% - 380px));
 	--bg: #F4F4F4;
 	--text: #474747;
 	--line: #57585A;
