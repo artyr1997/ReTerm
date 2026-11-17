@@ -1,0 +1,73 @@
+/* ReTerm shares ReNote's look: paper background, ink grey. Nothing on the page but the terminal. */
+
+:root {
+	--bg: #F4F4F4;
+	--text: #474747;
+	--line: #57585A;
+	color-scheme: light dark;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html,
+body {
+	height: 100%;
+	overflow: hidden;
+	background: var(--bg) url('/noise.svg') repeat;
+	color: var(--text);
+	-webkit-font-smoothing: antialiased;
+	cursor: default;
+}
+
+/* Hide scrollbars everywhere; scrolling still works */
+* {
+	scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+	display: none;
+}
+
+/* ── Dark, when the Mac is: the same paper at night. Its grain is light, so over the dark it is
+   multiplied in (darker specks) instead of laid on (a haze); the ink turns light. ── */
+:root[data-theme='dark'] {
+	--bg: #1d1d1d;
+	--text: #808080;
+	--line: #747474;
+	color-scheme: dark;
+}
+
+:root[data-theme='dark'] body {
+	background-blend-mode: multiply;
+}
+
+:root[data-theme='light'] {
+	color-scheme: light;
+}
+
+/* the Mac turned light or dark: the old look fades into the new one (index.html) */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 0.7s;
+	animation-timing-function: ease-in-out;
+}
+
+/* ── Glass (ReDesk's Settings › Glass windows): the window is the blur of what is behind it
+   (lib/glass.ts), the page clear on it, written in the desk's ink: white, as the words on the desk. ── */
+html.glass {
+	--bg: #1f2023 !important;
+	--text: rgba(255, 255, 255, 0.8) !important;
+	--line: rgba(255, 255, 255, 0.5) !important;
+	color-scheme: dark;
+}
+
+html.glass,
+html.glass body {
+	background: transparent !important;
+}
