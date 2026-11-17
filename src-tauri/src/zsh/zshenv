@@ -1,0 +1,7 @@
+# ReTerm: zsh reads the user's own files as always (their ZDOTDIR, or home), and ReTerm adds its marks
+# (.zshrc) around each command, so the page can show each one as a message with its answer.
+RETERM_ZDOTDIR=$ZDOTDIR
+ZDOTDIR=$RETERM_USER_ZDOTDIR
+[[ -f $ZDOTDIR/.zshenv ]] && builtin source $ZDOTDIR/.zshenv
+RETERM_USER_ZDOTDIR=$ZDOTDIR
+ZDOTDIR=$RETERM_ZDOTDIR

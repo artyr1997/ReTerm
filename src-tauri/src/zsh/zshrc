@@ -1,0 +1,20 @@
+# /etc/zshrc keeps the history by ZDOTDIR, which was ReTerm's then: the user's own, again
+[[ $HISTFILE == $RETERM_ZDOTDIR/* ]] && HISTFILE=$RETERM_USER_ZDOTDIR/.zsh_history
+ZDOTDIR=$RETERM_USER_ZDOTDIR
+[[ -f $ZDOTDIR/.zshrc ]] && builtin source $ZDOTDIR/.zshrc
+ZDOTDIR=$RETERM_ZDOTDIR
+
+# the marks (OSC 133, as other terminals use): D the last command done (its status), 7 where the shell is,
+# 6973 its PATH (for Tab), A ready for the next; C a command starts
+__reterm_precmd() {
+    local s=$?
+    builtin printf '\e]133;D;%s\a\e]7;file://%s%s\a\e]6973;%s\a\e]133;A\a' "$s" "$HOST" "$PWD" "$PATH"
+}
+__reterm_preexec() {
+    builtin printf '\e]133;C\a'
+}
+precmd_functions=(__reterm_precmd ${precmd_functions[@]})
+preexec_functions+=(__reterm_preexec)
+# no line of spaces after an answer that didn't end its line: the page ends it
+unsetopt PROMPT_SP
+PROMPT_EOL_MARK=''

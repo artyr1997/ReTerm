@@ -566,6 +566,9 @@ pub fn run() {
             pty::pty_open,
             pty::pty_write,
             pty::pty_resize,
+            pty::history,
+            pty::complete,
+            pty::home_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ReTerm");

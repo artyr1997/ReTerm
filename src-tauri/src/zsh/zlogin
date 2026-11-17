@@ -1,0 +1,3 @@
+ZDOTDIR=$RETERM_USER_ZDOTDIR
+[[ -f $ZDOTDIR/.zlogin ]] && builtin source $ZDOTDIR/.zlogin
+unset RETERM_ZDOTDIR RETERM_USER_ZDOTDIR
