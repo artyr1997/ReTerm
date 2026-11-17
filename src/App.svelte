@@ -762,13 +762,11 @@
 		margin-top: auto;
 	}
 
-	/* what was typed: a message, framed, on the right */
+	/* what was typed: a message on the right */
 	.said {
 		align-self: flex-end;
 		max-width: 80%;
 		margin-top: 8px;
-		padding: 6px 14px;
-		border: 2px solid var(--line);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 		user-select: text;
@@ -781,7 +779,7 @@
 
 	@keyframes breathe {
 		50% {
-			border-color: transparent;
+			opacity: 0.4;
 		}
 	}
 
@@ -860,10 +858,6 @@
 		font: inherit;
 		outline: none;
 		overflow-y: auto;
-	}
-
-	:global(html.glass) .said {
-		border-width: 1px;
 	}
 
 	:global(html.glass) textarea {
