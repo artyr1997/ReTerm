@@ -1,9 +1,12 @@
 // the terminal's lettering: monospaced, with Japanese
 import '@fontsource/m-plus-1-code/400.css';
 import '@fontsource/m-plus-1-code/700.css';
+// the side buttons' lettering, as the other Re apps'
+import '@fontsource/noto-sans-jp/400.css';
 import '@xterm/xterm/css/xterm.css';
 import './app.css';
 import { followDeskGlass } from './lib/glass';
+import { followDeskLanguage } from './lib/lang.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { mount } from 'svelte';
@@ -34,5 +37,7 @@ window.addEventListener(
 
 export default app;
 
+// the side buttons in the desk's language (ReDesk › Settings › Language)
+followDeskLanguage();
 // the window as glass, when ReDesk says so (Settings › Glass windows)
 followDeskGlass();
