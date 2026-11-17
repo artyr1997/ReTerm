@@ -3,6 +3,7 @@
 
 mod llm;
 mod pty;
+mod tg;
 
 use tauri::Manager;
 
@@ -630,6 +631,8 @@ pub fn run() {
             llm::llm_available,
             llm::llm_send,
             llm::llm_stop,
+            tg::tg_start,
+            tg::tg_send,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ReTerm");
