@@ -17,7 +17,7 @@
 	let { active = true }: { active?: boolean } = $props();
 
 	/** the other Re apps' lettering (app.css --font: Noto Sans JP, M PLUS 1p on glass), the terminal's too */
-	const font = () => getComputedStyle(document.documentElement).getPropertyValue('--font').trim() || "'Noto Sans JP', sans-serif";
+	const font = () => getComputedStyle(document.documentElement).getPropertyValue('--mono').trim() || "'Noto Sans Mono', monospace";
 	const SIZE_KEY = 'font-size';
 	const SIZES = { min: 9, max: 28, plain: 14 };
 	const LINE_HEIGHT = 1.25;
@@ -558,7 +558,7 @@
 		(async () => {
 			// measured in its own lettering, not a fallback's
 			await Promise.race([
-				Promise.all([document.fonts.load(`14px 'Noto Sans JP'`), document.fonts.load(`14px 'M PLUS 1p'`)]),
+				Promise.all([document.fonts.load(`14px 'Noto Sans Mono'`), document.fonts.load(`14px 'Noto Sans JP'`), document.fonts.load(`14px 'M PLUS 1p'`)]),
 				new Promise((done) => setTimeout(done, 1000)),
 			]);
 			if (disposed || !fullHost) return;
@@ -808,11 +808,12 @@
 		}
 	}
 
-	/* the answer: on the paper, as written */
+	/* the answer: on the paper, as written, in the terminal's lettering (its columns stand) */
 	.answer {
 		align-self: stretch;
 		margin: 0;
 		font: inherit;
+		font-family: var(--mono);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 		user-select: text;

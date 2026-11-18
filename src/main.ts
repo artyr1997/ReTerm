@@ -1,5 +1,8 @@
 // the side buttons' lettering, as the other Re apps'
 import '@fontsource/noto-sans-jp/400.css';
+// the terminal's answers: Noto of one width
+import '@fontsource/noto-sans-mono/400.css';
+import '@fontsource/noto-sans-mono/700.css';
 import '@fontsource/noto-sans-jp/700.css';
 // glass's lettering, as the other Re apps'
 import '@fontsource/m-plus-1p/400.css';

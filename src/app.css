@@ -1,8 +1,10 @@
 /* ReTerm shares ReNote's look: paper background, ink grey. Nothing on the page but the terminal. */
 
 :root {
-	/* the words, as the other Re apps': Noto Sans JP; on glass M PLUS 1p (the terminal's grid too) */
+	/* the words, as the other Re apps': Noto Sans JP; on glass M PLUS 1p. The terminal's answers in
+	   Noto Sans Mono, Noto's own of one width (so their columns stand), its Japanese from the same */
 	--font: 'Noto Sans JP', sans-serif;
+	--mono: 'Noto Sans Mono', 'Noto Sans JP', monospace;
 	/* where the conversation is: between the side buttons, a column 760 px wide at most in the middle,
 	   or the whole window (FULL) */
 	--area: calc(6.25% + 24px) max(calc(6.25% + 80px), calc(50% - 380px));
@@ -67,6 +69,7 @@ body {
    (lib/glass.ts), the page clear on it, written in the desk's ink: white, as the words on the desk. ── */
 html.glass {
 	--font: 'M PLUS 1p', sans-serif;
+	--mono: 'Noto Sans Mono', 'M PLUS 1p', monospace;
 	--bg: #1f2023 !important;
 	--text: rgba(255, 255, 255, 0.8) !important;
 	--line: rgba(255, 255, 255, 0.5) !important;
