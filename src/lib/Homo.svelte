@@ -7,6 +7,8 @@
 	import { invoke } from '@tauri-apps/api/core';
 	import { listen } from '@tauri-apps/api/event';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
+	import History from './History.svelte';
+	import { scrollFade } from './scrollFade';
 
 	let { active = false }: { active?: boolean } = $props();
 
@@ -388,17 +390,14 @@
 
 <div class="page" class:hidden={!active}>
 	{#if stage === 'ready'}
-		<nav class="chats">
-			{#each ordered as chat (chat.id)}
-				<button class="chat" class:open={chat.id === open} onclick={() => openChat(chat.id)}>
-					<span class="title"><span class:ink-mark={chat.id === open}>{chat.title}</span></span>
-					{#if chat.unread}<span class="unread">{chat.unread}</span>{/if}
-				</button>
-			{/each}
-		</nav>
+		<History
+			items={ordered.map((c) => ({ id: c.id, title: c.title, badge: c.unread || undefined }))}
+			shown={open}
+			pick={(id) => openChat(Number(id))}
+		/>
 		<section class="talk">
 			{#if open !== null}
-				<div class="list" bind:this={list}>
+				<div class="list" bind:this={list} use:scrollFade>
 					{#each messages as m (m.id)}
 						<div class="message" class:mine={m.mine} title={time(m.date)}>
 							{#if isGroup && !m.mine && users[m.sender]}<span class="who">{users[m.sender]}</span>{/if}{m.text}
@@ -454,7 +453,6 @@
 		position: fixed;
 		inset: var(--area);
 		display: flex;
-		gap: 40px;
 		font-family: var(--font);
 		font-size: 14px;
 		line-height: 1.5;
@@ -462,49 +460,6 @@
 
 	.page.hidden {
 		visibility: hidden;
-	}
-
-	.chats {
-		width: 26%;
-		min-width: 160px;
-		max-width: 300px;
-		overflow-y: auto;
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-
-	.chat {
-		display: flex;
-		align-items: baseline;
-		gap: 10px;
-		padding: 5px 0;
-		background: transparent;
-		border: none;
-		color: var(--text);
-		font: inherit;
-		text-align: left;
-		opacity: 0.75;
-		cursor: pointer;
-	}
-
-	.chat:hover,
-	.chat.open {
-		opacity: 1;
-	}
-
-	.title {
-		flex: 1;
-		min-width: 0;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		padding: 0.25em 0.45em;
-	}
-
-	.unread {
-		font-size: 0.8em;
-		opacity: 0.6;
 	}
 
 	.talk {

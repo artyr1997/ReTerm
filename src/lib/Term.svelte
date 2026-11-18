@@ -5,6 +5,8 @@
 	// (src-tauri/src/pty.rs), its marks (src-tauri/src/zsh) saying where each command starts and ends.
 	// A program that takes the whole screen (vim, htop, less…) has the whole window while it runs. Another
 	// shell than zsh: a plain terminal. When the shell ends, the window closes.
+	// Each session is kept (its commands and their answers as text): ⌘K starts a new one, the ones before
+	// are on the left (History), to look at again; ⌥↑ / ⌥↓ the one above / below, a key typed the live one.
 	import { onMount, tick } from 'svelte';
 	import { invoke } from '@tauri-apps/api/core';
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -12,6 +14,8 @@
 	import { Terminal, type ITheme } from '@xterm/xterm';
 	import { FitAddon } from '@xterm/addon-fit';
 	import { Unicode11Addon } from '@xterm/addon-unicode11';
+	import History from './History.svelte';
+	import { scrollFade } from './scrollFade';
 
 	// active: TERM is the mode shown (App.svelte); the keys are its only then
 	let { active = true }: { active?: boolean } = $props();
@@ -122,6 +126,111 @@
 
 	let screen: Terminal;
 	let fit: FitAddon;
+
+	// ── the sessions: this one, live, and the ones before ──
+
+	interface Kept {
+		command: string | null;
+		html: string;
+		status: number | null;
+		fullscreen: boolean;
+	}
+	interface Session {
+		id: number;
+		started: number;
+		last: number;
+		/** where it was last */
+		place: string;
+		blocks: Kept[];
+	}
+	const SESSIONS = 'sessions';
+	const MOST = 100;
+	/** what is kept of all of them, at most (localStorage holds a few MB) */
+	const ROOM = 2_500_000;
+	/** one answer kept, at most: its end */
+	const ANSWER = 100_000;
+
+	let sessionId = Date.now();
+	let started = sessionId;
+	let past: Session[] = $state([]);
+	/** a session before, looked at; null: the live one */
+	let viewing: number | null = $state(null);
+	const viewed = $derived(viewing === null ? null : past.find((p) => p.id === viewing) ?? null);
+
+	function storedSessions(): Session[] {
+		try {
+			const s = JSON.parse(localStorage.getItem(SESSIONS) ?? '[]');
+			return Array.isArray(s) ? s : [];
+		} catch {
+			return [];
+		}
+	}
+
+	const keptOf = (b: Block): Kept => ({
+		command: b.command,
+		html: b.html.length > ANSWER ? b.html.slice(b.html.indexOf('\n', b.html.length - ANSWER) + 1) : b.html,
+		status: b.status,
+		fullscreen: b.fullscreen,
+	});
+
+	/** this session written over what is kept (the other windows' sessions kept too) */
+	function keepSession() {
+		const done = blocks.filter((b) => !b.term && (b.command !== null || b.html));
+		const others = storedSessions().filter((p) => p.id !== sessionId);
+		let all = others;
+		if (done.some((b) => b.command !== null)) {
+			all = [{ id: sessionId, started, last: Date.now(), place, blocks: done.map(keptOf) }, ...others];
+		}
+		all = all.sort((a, b) => b.last - a.last).slice(0, MOST);
+		let json = JSON.stringify(all);
+		while (json.length > ROOM && all.length > 1) {
+			all = all.slice(0, -1);
+			json = JSON.stringify(all);
+		}
+		try {
+			localStorage.setItem(SESSIONS, json);
+		} catch {}
+		past = all.filter((p) => p.id !== sessionId);
+	}
+
+	/** ⌘K: this session kept on the left, a new one begun (a command running goes on in it) */
+	function newSession() {
+		keepSession();
+		blocks = blocks.filter((b) => b.term);
+		sessionId = Date.now();
+		started = sessionId;
+		viewing = null;
+		past = storedSessions().filter((p) => p.id !== sessionId);
+		tick().then(() => field?.focus());
+	}
+
+	const sessionTitle = (kept: { command: string | null }[], where: string) =>
+		(kept.find((b) => b.command !== null)?.command ?? where ?? '~').split('\n')[0].slice(0, 80) || '~';
+	const when = (ms: number) => new Date(ms).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+	const listed = $derived([
+		{ id: 'now', title: sessionTitle(blocks, place), hint: place },
+		...past.map((p) => ({ id: p.id, title: sessionTitle(p.blocks, p.place), hint: `${when(p.started)} · ${p.place}` })),
+	]);
+
+	function pick(id: number | string) {
+		viewing = id === 'now' ? null : Number(id);
+		tick().then(() => {
+			if (viewing === null) {
+				stickToBottom(true);
+				field?.focus();
+			} else if (oldChat) oldChat.scrollTop = oldChat.scrollHeight;
+		});
+	}
+
+	/** ⌥↑ / ⌥↓: the session above / below on the left */
+	function step(by: number) {
+		const at = listed.findIndex((l) => l.id === (viewing ?? 'now'));
+		const next = listed[Math.min(listed.length - 1, Math.max(0, at + by))];
+		if (next) pick(next.id);
+	}
+
+	let oldChat: HTMLDivElement | undefined = $state();
 
 	const send = (data: string) => invoke('pty_write', { data }).catch(() => {});
 
@@ -284,7 +393,8 @@
 			block.host = null;
 			term.dispose();
 			const words = (block.command ?? '').trim();
-			if (words === 'clear' || words === 'reset') blocks = [];
+			if (words === 'clear' || words === 'reset') newSession();
+			else keepSession();
 			stickToBottom(true);
 		});
 		shell = 'idle';
@@ -492,7 +602,10 @@
 			send('\x1a');
 		} else if ((e.ctrlKey && !e.metaKey && e.key === 'l') || (e.metaKey && e.key === 'k')) {
 			e.preventDefault();
-			clearChat();
+			newSession();
+		} else if (e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+			e.preventDefault();
+			step(e.key === 'ArrowUp' ? -1 : 1);
 		} else if (e.key === 'ArrowUp' && field && !input.slice(0, field.selectionStart).includes('\n')) {
 			if (!history.length) return;
 			e.preventDefault();
@@ -515,10 +628,6 @@
 		} else if (e.metaKey && !e.shiftKey && e.key === 'ArrowLeft' && field && !input) {
 			// nothing typed: as in a terminal, nothing to do
 		}
-	}
-
-	function clearChat() {
-		blocks = blocks.filter((b) => b.term);
 	}
 
 	function setSize(n: number) {
@@ -554,6 +663,7 @@
 		let disposed = false;
 		const cleanups: (() => void)[] = [];
 		paintPalette();
+		past = storedSessions();
 
 		(async () => {
 			// measured in its own lettering, not a fallback's
@@ -663,7 +773,17 @@
 			cleanups.push(() => removeEventListener('focus', focus));
 			// typing anywhere goes to the line
 			const anyKey = (e: KeyboardEvent) => {
-				if (!active || full || mode === 'plain' || e.metaKey || e.ctrlKey || e.altKey) return;
+				if (!active || full || mode === 'plain') return;
+				if (viewing !== null && e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+					e.preventDefault();
+					return step(e.key === 'ArrowUp' ? -1 : 1);
+				}
+				if (e.metaKey || e.ctrlKey || e.altKey) return;
+				// a session before looked at: a key typed is for the live one
+				if (viewing !== null) {
+					viewing = null;
+					stickToBottom(true);
+				}
 				const at = document.activeElement;
 				if (at === field || at?.closest('.live')) return;
 				field?.focus();
@@ -693,7 +813,21 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="page" class:hidden={!active || full || mode !== 'chat'} style="--size: {fontSize}px;" onclick={pageClick}>
-	<div class="chat" bind:this={chat}>
+	<History items={listed} shown={viewing ?? 'now'} {pick} />
+	<div class="talk">
+	{#if viewed}
+		<div class="chat" bind:this={oldChat} use:scrollFade>
+			{#each viewed.blocks as block, i (i)}
+				{#if block.command !== null}<div class="said">{block.command}</div>{/if}
+				{#if block.html}<pre class="answer">{@html block.html}</pre>{:else if block.fullscreen}<p class="note">⋯</p>{/if}
+				{#if block.status !== null && block.status !== 0}<p class="status">✕ {block.status}</p>{/if}
+			{/each}
+		</div>
+		<div class="type">
+			<p class="where">{when(viewed.started)} · {viewed.place}</p>
+		</div>
+	{/if}
+	<div class="chat" class:away={!!viewed} bind:this={chat} use:scrollFade>
 		{#each blocks as block (block.id)}
 			{#if block.command !== null}
 				<div class="said" class:running={block.status === null}>{block.command}</div>
@@ -711,7 +845,7 @@
 		{/each}
 	</div>
 
-	<div class="type">
+	<div class="type" class:away={!!viewed}>
 		{#if hints.length}
 			<div class="hints">{#each hints as hint}<span>{hint}</span>{/each}</div>
 		{/if}
@@ -727,24 +861,43 @@
 			onkeydown={keydown}
 		></textarea>
 	</div>
+	</div>
 </div>
 
-<div class="screen" class:shown={active && (full || mode === 'plain')} bind:this={fullHost}></div>
+<div class="screen" class:shown={active && (full || mode === 'plain')} class:wide={mode === 'plain'} bind:this={fullHost}></div>
 
 <style>
 	/* the area between the side buttons, or the whole window (FULL): App.svelte's --area */
-	.page,
-	.screen {
+	.page {
 		position: fixed;
 		inset: var(--area);
-	}
-
-	.page {
 		display: flex;
-		flex-direction: column;
 		font-family: var(--font);
 		font-size: var(--size);
 		line-height: 1.25;
+	}
+
+	/* the conversation's column, right of the history: the program with the whole window has it too */
+	.screen {
+		position: fixed;
+		inset: var(--top) var(--right) var(--bottom) calc(var(--left) + var(--list));
+	}
+
+	/* a plain terminal (another shell than zsh): no history beside it, the whole area */
+	.screen.wide {
+		inset: var(--area);
+	}
+
+	.talk {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	/* the live session, while one before is looked at */
+	.away {
+		display: none !important;
 	}
 
 	.page.hidden {

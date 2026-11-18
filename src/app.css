@@ -5,9 +5,15 @@
 	   Noto Sans Mono, Noto's own of one width (so their columns stand), its Japanese from the same */
 	--font: 'Noto Sans JP', sans-serif;
 	--mono: 'Noto Sans Mono', 'Noto Sans JP', monospace;
-	/* where the conversation is: between the side buttons, a column 760 px wide at most in the middle,
-	   or the whole window (FULL) */
-	--area: calc(6.25% + 24px) max(calc(6.25% + 80px), calc(50% - 380px));
+	/* where the conversation is: between the side buttons, the history of conversations on the left
+	   (--list wide) and the one shown in a column 760 px wide at most, the two in the middle; or the
+	   whole window (FULL). The column alone starts at --left + --list. */
+	--list: clamp(190px, 24%, 300px);
+	--top: calc(6.25% + 24px);
+	--bottom: calc(6.25% + 24px);
+	--left: max(calc(6.25% + 80px), calc(50% - 380px - var(--list) / 2));
+	--right: var(--left);
+	--area: var(--top) var(--right) var(--bottom) var(--left);
 	--bg: #F4F4F4;
 	--text: #474747;
 	--line: #57585A;
@@ -258,11 +264,52 @@ html.glass :is(.ink-mark) {
 
 /* FULL, or a window too small for the side buttons: the paper's margins only, clear of the corner's diamond */
 html.full {
-	--area: 36px 30px 22px 34px;
+	--top: 36px;
+	--right: 30px;
+	--bottom: 22px;
+	--left: 34px;
 }
 
+/* the window small (as in the other apps' small window): the conversation only, no history */
 @media (max-width: 759px), (max-height: 559px) {
 	:root {
-		--area: 36px 30px 22px 34px;
+		--top: 36px;
+		--right: 30px;
+		--bottom: 22px;
+		--left: 34px;
+		--list: 0px;
 	}
+
+	.history {
+		display: none !important;
+	}
+}
+
+/* Lines fade out near the edges of scrollable blocks, as in the other apps (lib/scrollFade.ts) */
+@property --fade-top {
+	syntax: '<length>';
+	inherits: false;
+	initial-value: 0px;
+}
+
+@property --fade-bottom {
+	syntax: '<length>';
+	inherits: false;
+	initial-value: 0px;
+}
+
+.scroll-fade {
+	--fade-top: 0px;
+	--fade-bottom: 0px;
+	mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+	-webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--fade-top), #000 calc(100% - var(--fade-bottom)), transparent);
+	transition: --fade-top 200ms ease, --fade-bottom 200ms ease;
+}
+
+.scroll-fade.fade-top {
+	--fade-top: 56px;
+}
+
+.scroll-fade.fade-bottom {
+	--fade-bottom: 56px;
 }
