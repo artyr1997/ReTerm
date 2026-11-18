@@ -681,6 +681,18 @@ pub fn run() {
             tg::tg_start,
             tg::tg_send,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running ReTerm");
+        .build(tauri::generate_context!())
+        .expect("error while running ReTerm")
+        .run(|_app, event| {
+            // gone at once: TDLib's own clearing away (C++'s, at exit) pulls its library from under its
+            // thread still listening (tg.rs), which crashed ReTerm on every quit. The shells hear their
+            // terminals close all the same.
+            if let tauri::RunEvent::Exit = event {
+                unsafe extern "C" {
+                    fn _exit(code: i32) -> !;
+                }
+                // SAFETY: the C library's _exit, which ends the process without running exit handlers
+                unsafe { _exit(0) }
+            }
+        });
 }
