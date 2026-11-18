@@ -22,7 +22,7 @@ Four side buttons, as the other Re apps have:
 - Keys: ⌘N new window · ⌘W close · ⌘K / Ctrl+L clear · Ctrl+C stop · ⌘+ / ⌘− / ⌘0 lettering size
 - Rounded corners, no shadow, ReDesk's tiling, pin and glass, as the other Re apps.
 
-The icon's 金 is set in Yuji Boku (SIL Open Font License).
+The icon's 火 (fire) is set in Yuji Boku (SIL Open Font License).
 
 ## Run
 
