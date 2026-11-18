@@ -16,7 +16,8 @@
 	// active: TERM is the mode shown (App.svelte); the keys are its only then
 	let { active = true }: { active?: boolean } = $props();
 
-	const FONT = "'M PLUS 1 Code', Menlo, monospace";
+	/** the other Re apps' lettering (app.css --font: Noto Sans JP, M PLUS 1p on glass), the terminal's too */
+	const font = () => getComputedStyle(document.documentElement).getPropertyValue('--font').trim() || "'Noto Sans JP', sans-serif";
 	const SIZE_KEY = 'font-size';
 	const SIZES = { min: 9, max: 28, plain: 14 };
 	const LINE_HEIGHT = 1.25;
@@ -204,7 +205,7 @@
 
 	function newTerminal(rows: number) {
 		const term = new Terminal({
-			fontFamily: FONT,
+			fontFamily: font(),
 			fontSize,
 			lineHeight: LINE_HEIGHT,
 			cols: screen.cols,
@@ -556,11 +557,14 @@
 
 		(async () => {
 			// measured in its own lettering, not a fallback's
-			await Promise.race([document.fonts.load(`14px ${FONT}`), new Promise((done) => setTimeout(done, 1000))]);
+			await Promise.race([
+				Promise.all([document.fonts.load(`14px 'Noto Sans JP'`), document.fonts.load(`14px 'M PLUS 1p'`)]),
+				new Promise((done) => setTimeout(done, 1000)),
+			]);
 			if (disposed || !fullHost) return;
 
 			screen = new Terminal({
-				fontFamily: FONT,
+				fontFamily: font(),
 				fontSize,
 				lineHeight: LINE_HEIGHT,
 				cursorBlink: true,
@@ -637,7 +641,14 @@
 			const recolor = () => {
 				paintPalette();
 				screen.options.theme = theme();
-				for (const b of blocks) if (b.term) b.term.options.theme = theme();
+				// on glass and off it, its lettering too
+				screen.options.fontFamily = font();
+				for (const b of blocks) {
+					if (!b.term) continue;
+					b.term.options.theme = theme();
+					b.term.options.fontFamily = font();
+				}
+				refit();
 			};
 			addEventListener('themechange', recolor);
 			cleanups.push(() => removeEventListener('themechange', recolor));
