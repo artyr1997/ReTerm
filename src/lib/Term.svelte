@@ -731,7 +731,7 @@
 	.page {
 		display: flex;
 		flex-direction: column;
-		font-family: 'M PLUS 1 Code', Menlo, monospace;
+		font-family: var(--font);
 		font-size: var(--size);
 		line-height: 1.25;
 	}

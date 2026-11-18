@@ -298,7 +298,7 @@
 		inset: var(--area);
 		display: flex;
 		flex-direction: column;
-		font-family: 'M PLUS 1 Code', Menlo, monospace;
+		font-family: var(--font);
 		font-size: var(--size, 14px);
 		line-height: 1.5;
 	}

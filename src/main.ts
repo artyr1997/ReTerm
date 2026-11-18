@@ -3,6 +3,10 @@ import '@fontsource/m-plus-1-code/400.css';
 import '@fontsource/m-plus-1-code/700.css';
 // the side buttons' lettering, as the other Re apps'
 import '@fontsource/noto-sans-jp/400.css';
+import '@fontsource/noto-sans-jp/700.css';
+// glass's lettering, as the other Re apps'
+import '@fontsource/m-plus-1p/400.css';
+import '@fontsource/m-plus-1p/700.css';
 import '@xterm/xterm/css/xterm.css';
 import './app.css';
 import { followDeskGlass } from './lib/glass';

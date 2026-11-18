@@ -455,7 +455,7 @@
 		inset: var(--area);
 		display: flex;
 		gap: 40px;
-		font-family: 'M PLUS 1 Code', Menlo, monospace;
+		font-family: var(--font);
 		font-size: 14px;
 		line-height: 1.5;
 	}
