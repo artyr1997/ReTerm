@@ -1,8 +1,7 @@
 /* ReTerm shares ReNote's look: paper background, ink grey. Nothing on the page but the terminal. */
 
 :root {
-	/* the words, as the other Re apps': Noto Sans JP; on glass M PLUS 1p (the terminal's own grid, while
-	   an answer comes or a program has the screen, keeps M PLUS 1 Code: it needs its letters of one width) */
+	/* the words, as the other Re apps': Noto Sans JP; on glass M PLUS 1p (the terminal's grid too) */
 	--font: 'Noto Sans JP', sans-serif;
 	/* where the conversation is: between the side buttons, a column 760 px wide at most in the middle,
 	   or the whole window (FULL) */

@@ -1,6 +1,3 @@
-// the terminal's lettering: monospaced, with Japanese
-import '@fontsource/m-plus-1-code/400.css';
-import '@fontsource/m-plus-1-code/700.css';
 // the side buttons' lettering, as the other Re apps'
 import '@fontsource/noto-sans-jp/400.css';
 import '@fontsource/noto-sans-jp/700.css';

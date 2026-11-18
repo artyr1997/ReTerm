@@ -16,7 +16,7 @@ Four side buttons, as the other Re apps have:
   (ChatGPT's), Tab between them. The conversation goes on by its session; ⌘K a new one.
 - **FULL** (⌘⇧F): the one shown has the whole window, the buttons go.
 
-- M PLUS 1 Code, monospaced with Japanese; the buttons in the desk's language (ReDesk), with its flap.
+- The other Re apps' lettering (Noto Sans JP; M PLUS 1p on glass), the terminal's grid too; the buttons in the desk's language (ReDesk), with its flap.
 - Light or dark as the Mac is, glass when ReDesk says so; quiet ANSI colours in the ink's tone.
 - When the shell ends, the window closes; the last window closed quits ReTerm.
 - Keys: ⌘N new window · ⌘W close · ⌘K / Ctrl+L clear · Ctrl+C stop · ⌘+ / ⌘− / ⌘0 lettering size
