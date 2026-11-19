@@ -26,8 +26,18 @@
 		} catch {}
 	});
 
+	/** a key typed in a line to type: its caret steady, blinking again from now (app.css caret-blink) */
+	function steadyCaret(e: Event) {
+		const el = e.target as HTMLElement | null;
+		if (!el || !(el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement)) return;
+		el.style.animation = 'none';
+		void el.offsetWidth;
+		el.style.animation = '';
+	}
+
 	// ⌘⇧T / ⌘⇧H / ⌘⇧C: the three; ⌘⇧F: FULL. Before the terminal hears them.
 	function keydown(e: KeyboardEvent) {
+		steadyCaret(e);
 		if (!e.metaKey || !e.shiftKey || e.ctrlKey || e.altKey) return;
 		const to: Record<string, () => void> = {
 			KeyT: () => (mode = 'term'),
@@ -42,7 +52,7 @@
 	}
 </script>
 
-<svelte:window onkeydowncapture={keydown} />
+<svelte:window onkeydowncapture={keydown} onmousedowncapture={steadyCaret} />
 
 <WindowControls />
 

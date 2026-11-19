@@ -313,3 +313,15 @@ html.full {
 .scroll-fade.fade-bottom {
 	--fade-bottom: 56px;
 }
+
+/* the caret in the line to type blinks, as the Mac's (on 0.53 s, off 0.53 s); steady while typing
+   (App.svelte starts it again at each key) */
+@keyframes caret-blink {
+	50% {
+		caret-color: transparent;
+	}
+}
+
+:is(textarea, input):focus {
+	animation: caret-blink 1.06s step-end infinite;
+}
