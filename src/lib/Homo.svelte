@@ -5,7 +5,7 @@
 	// right, theirs on the left, the line to type at the bottom. ⌥↑ / ⌥↓ the chat above / below. NOVA: someone
 	// to write to, found by @username, phone number or name.
 	import { onMount, tick } from 'svelte';
-	import { invoke } from '@tauri-apps/api/core';
+	import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 	import { listen } from '@tauri-apps/api/event';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import History from './History.svelte';
@@ -24,12 +24,26 @@
 		unread: number;
 		last: string;
 	}
+	interface Media {
+		kind: 'photo' | 'video' | 'gif' | 'round';
+		/** TDLib's file: the picture, or the video */
+		file: number;
+		/** a video's still, shown until it plays */
+		thumb?: number;
+		/** a tiny blurred picture of it, at once (a data: URL) */
+		mini?: string;
+		w: number;
+		h: number;
+	}
+
 	interface Message {
 		id: number;
 		mine: boolean;
 		text: string;
 		sender: number;
 		date: number;
+		/** a picture or a video: shown (its words, the caption, under it) */
+		media?: Media;
 		/** a sticker: drawn as its outline (vector, in the ink), the words if it has none */
 		sticker?: { file: number; w: number; h: number; outline?: any[] };
 	}
@@ -120,8 +134,80 @@
 			sender: m.sender_id?.user_id ?? m.sender_id?.chat_id ?? 0,
 			date: m.date,
 			sticker: stickerOf(m.content),
+			...withMedia(m.content),
 		};
 	}
+
+	// ── pictures and videos: TDLib's files, downloaded into its folder and shown from there (the asset
+	// protocol: tauri.conf.json). Photos and GIFs come at once; a video (or a round one) its still first,
+	// itself when clicked ──
+
+	/** where each file is on the disk, once downloaded */
+	let paths: Record<number, string> = $state({});
+	const fetching = new Set<number>();
+	/** the videos clicked: they play */
+	let playing: Record<number, boolean> = $state({});
+
+	const known = (f: any) => {
+		if (f?.local?.is_downloading_completed && f.local.path) paths[f.id] = f.local.path;
+		return f?.id as number | undefined;
+	};
+	const mini = (m: any) => (m?.data ? `data:image/jpeg;base64,${m.data}` : undefined);
+
+	/** a message with a picture or video: its media, and its words only the caption */
+	function withMedia(content: any): { media?: Media; text?: string } {
+		const caption = plain(content?.caption?.text ?? '');
+		switch (content?.['@type']) {
+			case 'messagePhoto': {
+				const sizes = [...(content.photo?.sizes ?? [])].sort((a: any, b: any) => a.width - b.width);
+				const size = sizes.filter((z: any) => z.width <= 1280).at(-1) ?? sizes.at(-1);
+				const file = known(size?.photo);
+				if (!file) return {};
+				return { media: { kind: 'photo', file, mini: mini(content.photo.minithumbnail), w: size.width, h: size.height }, text: caption };
+			}
+			case 'messageVideo': {
+				const v = content.video;
+				const file = known(v?.video);
+				if (!file) return {};
+				return { media: { kind: 'video', file, thumb: known(v.thumbnail?.file), mini: mini(v.minithumbnail), w: v.width || 16, h: v.height || 9 }, text: caption };
+			}
+			case 'messageAnimation': {
+				const a = content.animation;
+				const file = known(a?.animation);
+				if (!file) return {};
+				return { media: { kind: 'gif', file, thumb: known(a.thumbnail?.file), mini: mini(a.minithumbnail), w: a.width || 1, h: a.height || 1 }, text: caption };
+			}
+			case 'messageVideoNote': {
+				const n = content.video_note;
+				const file = known(n?.video);
+				if (!file) return {};
+				return { media: { kind: 'round', file, thumb: known(n.thumbnail?.file), mini: mini(n.minithumbnail), w: 1, h: 1 }, text: '' };
+			}
+		}
+		return {};
+	}
+
+	async function download(file: number | undefined) {
+		if (!file || paths[file] || fetching.has(file)) return;
+		fetching.add(file);
+		const f = await request({ '@type': 'downloadFile', file_id: file, priority: 16, offset: 0, limit: 0, synchronous: true });
+		if (f?.local?.is_downloading_completed) paths[file] = f.local.path;
+		fetching.delete(file);
+	}
+
+	function play(media: Media) {
+		playing[media.file] = true;
+		download(media.file);
+	}
+
+	// what is on the page: its pictures, the videos' stills, the GIFs
+	$effect(() => {
+		for (const m of messages) {
+			if (!m.media) continue;
+			if (m.media.kind === 'photo' || m.media.kind === 'gif') download(m.media.file);
+			download(m.media.thumb);
+		}
+	});
 
 	// ── stickers as their outlines: Telegram's vector contour of each (the one it shows while the sticker
 	// loads), filled in the ink: black and white, sharp at any size, nothing downloaded ──
@@ -220,6 +306,8 @@
 			if (m) {
 				m.text = words(u.new_content);
 				m.sticker = stickerOf(u.new_content);
+				const media = withMedia(u.new_content);
+				if (media.media) Object.assign(m, media);
 			}
 		} else if (type === 'updateDeleteMessages' && u.chat_id === open && u.is_permanent) {
 			messages = messages.filter((x) => !u.message_ids.includes(x.id));
@@ -527,7 +615,21 @@
 				<div class="list" bind:this={list} use:scrollFade>
 					{#each messages as m (m.id)}
 						<div class="message" class:mine={m.mine} title={time(m.date)}>
-							{#if isGroup && !m.mine && users[m.sender]}<span class="who">{users[m.sender]}</span>{/if}{#if m.sticker && outlines[m.sticker.file]}<svg
+							{#if isGroup && !m.mine && users[m.sender]}<span class="who">{users[m.sender]}</span>{/if}{#if m.media}{@const media = m.media}{@const src = paths[media.file] ? convertFileSrc(paths[media.file]) : ''}{@const still = media.thumb && paths[media.thumb] ? convertFileSrc(paths[media.thumb]) : media.mini}<div
+									class="media {media.kind}"
+									style="aspect-ratio: {media.w} / {media.h}; width: {media.kind === 'round' ? 240 : Math.min(420, Math.max(160, media.w))}px; {still ? `background-image: url('${still}');` : ''}"
+								>
+									{#if media.kind === 'photo'}
+										{#if src}<img {src} alt={m.text} draggable="false" />{/if}
+									{:else if media.kind === 'gif'}
+										{#if src}<video {src} autoplay muted loop playsinline></video>{/if}
+									{:else if playing[media.file] && src}
+										<!-- svelte-ignore a11y_media_has_caption -->
+										<video {src} autoplay controls playsinline></video>
+									{:else}
+										<button class="play" onclick={() => play(media)} aria-label="Play">{playing[media.file] ? '⋯' : '▶'}</button>
+									{/if}
+								</div>{#if m.text}<span class="caption">{m.text}</span>{/if}{:else if m.sticker && outlines[m.sticker.file]}<svg
 									class="sticker" viewBox="0 0 {m.sticker.w} {m.sticker.h}" role="img" aria-label={m.text}><path d={outlines[m.sticker.file]} /></svg
 								>{:else}{m.text}{/if}
 						</div>
@@ -624,6 +726,58 @@
 		overflow-wrap: anywhere;
 		user-select: text;
 		cursor: text;
+	}
+
+	/* a picture or a video: square, as the glass is; the blurred still under it until it comes */
+	.media {
+		position: relative;
+		max-width: 100%;
+		max-height: 420px;
+		background: center / cover no-repeat;
+		overflow: hidden;
+	}
+
+	.message.mine .media {
+		margin-left: auto;
+	}
+
+	.media.round {
+		border-radius: 50%;
+	}
+
+	.media :is(img, video) {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.media.video video {
+		object-fit: contain;
+		background: #000;
+	}
+
+	.play {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		background: rgba(0, 0, 0, 0.25);
+		border: none;
+		color: #fff;
+		font-size: 28px;
+		opacity: 0.85;
+		cursor: pointer;
+	}
+
+	.play:hover {
+		opacity: 1;
+	}
+
+	.caption {
+		display: block;
+		margin-top: 6px;
 	}
 
 	/* a sticker's outline, in the ink */

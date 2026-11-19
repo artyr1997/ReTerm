@@ -20,7 +20,7 @@ tauri-build = { version = "2.7.4", features = [] }
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "2.12.5", features = ["macos-private-api"] }
+tauri = { version = "2.12.5", features = ["macos-private-api", "protocol-asset"] }
 dirs = "7.0.0"
 portable-pty = "0.9"
 libloading = "0.8"
