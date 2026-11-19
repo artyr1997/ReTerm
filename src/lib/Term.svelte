@@ -6,7 +6,7 @@
 	// A program that takes the whole screen (vim, htop, less…) has the whole window while it runs. Another
 	// shell than zsh: a plain terminal. When the shell ends, the window closes.
 	// Each session is kept (its commands and their answers as text): ⌘K starts a new one, the ones before
-	// are on the left (History), each to go on with (the shell goes to where it was); ⌥↑ / ⌥↓ the one
+	// are on the left (History), each to go on with (the shell goes to where it was); ⇧↑ / ⇧↓ the one
 	// above / below.
 	import { onMount, tick } from 'svelte';
 	import { invoke } from '@tauri-apps/api/core';
@@ -240,7 +240,7 @@
 		tick().then(() => field?.focus());
 	}
 
-	/** ⌥↑ / ⌥↓: the session above / below on the left */
+	/** ⇧↑ / ⇧↓: the session above / below on the left */
 	function step(by: number) {
 		const at = listed.findIndex((l) => l.id === sessionId);
 		const next = listed[Math.min(listed.length - 1, Math.max(0, at + by))];
@@ -618,7 +618,7 @@
 		} else if ((e.ctrlKey && !e.metaKey && e.key === 'l') || (e.metaKey && e.key === 'k')) {
 			e.preventDefault();
 			newSession();
-		} else if (e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+		} else if (e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
 			e.preventDefault();
 			step(e.key === 'ArrowUp' ? -1 : 1);
 		} else if (e.key === 'ArrowUp' && field && !input.slice(0, field.selectionStart).includes('\n')) {

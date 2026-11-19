@@ -2,7 +2,7 @@
 	// CHAT: a conversation with an LLM, as TERM's with the shell: what is said on the right, the answer under
 	// it as it comes. Through the programs installed and signed in (claude, codex: src-tauri/src/llm.rs); the
 	// conversation goes on by its session until ⌘K starts a new one. The ones before on the left, each to go
-	// on with (its sessions kept); ⌥↑ / ⌥↓ the one above / below. Kept between launches.
+	// on with (its sessions kept); ⇧↑ / ⇧↓ the one above / below. Kept between launches.
 	import { onMount, tick } from 'svelte';
 	import { invoke } from '@tauri-apps/api/core';
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -250,7 +250,7 @@
 		tick().then(() => field?.focus());
 	}
 
-	/** ⌥↑ / ⌥↓: the conversation above / below on the left */
+	/** ⇧↑ / ⇧↓: the conversation above / below on the left */
 	function step(by: number) {
 		const at = listed.findIndex((c) => c.id === shownId);
 		const next = listed[Math.min(listed.length - 1, Math.max(0, at + by))];
@@ -279,7 +279,7 @@
 		} else if ((e.metaKey && e.key === 'k') || (e.ctrlKey && e.key === 'l')) {
 			e.preventDefault();
 			fresh();
-		} else if (e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+		} else if (e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
 			e.preventDefault();
 			step(e.key === 'ArrowUp' ? -1 : 1);
 		} else if (e.key === 'ArrowUp' && field && !input.slice(0, field.selectionStart).includes('\n')) {

@@ -2,7 +2,7 @@
 	// HOMO: conversations with people, through Telegram (TDLib: src-tauri/src/tg.rs). Signed in once (the app's
 	// api_id and api_hash from my.telegram.org, then the phone, its code, the password if there is one), it
 	// stays so. The chats on the left, the one open on the right as TERM's and CHAT's: what I say on the
-	// right, theirs on the left, the line to type at the bottom. ⌥↑ / ⌥↓ the chat above / below. NOVA: someone
+	// right, theirs on the left, the line to type at the bottom. ⇧↑ / ⇧↓ the chat above / below. NOVA: someone
 	// to write to, found by @username, phone number or name.
 	import { onMount, tick } from 'svelte';
 	import { invoke, convertFileSrc } from '@tauri-apps/api/core';
@@ -548,7 +548,7 @@
 		let off: (() => void) | null = null;
 		const keys = (e: KeyboardEvent) => {
 			if (!active || stage !== 'ready') return;
-			if (e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+			if (e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
 				e.preventDefault();
 				step(e.key === 'ArrowUp' ? -1 : 1);
 			} else if (!e.metaKey && !e.ctrlKey && !e.altKey && open !== null && document.activeElement !== field) {
