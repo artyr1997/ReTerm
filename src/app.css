@@ -352,3 +352,9 @@ html.full {
 		max-width: calc(100% - 200px);
 	}
 }
+
+/* on glass every word is in M PLUS 1p, as in the other apps: the title too */
+html.glass .shown-title {
+	font-family: 'M PLUS 1p', sans-serif;
+	letter-spacing: 0;
+}
