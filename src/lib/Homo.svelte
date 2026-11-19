@@ -10,6 +10,7 @@
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import History from './History.svelte';
 	import { scrollFade } from './scrollFade';
+	import { plain } from './emoji';
 
 	let { active = false }: { active?: boolean } = $props();
 
@@ -74,7 +75,9 @@
 
 	// ── what a message says, in words ──
 
-	function words(content: any): string {
+	const words = (content: any) => plain(said(content));
+
+	function said(content: any): string {
 		if (!content) return '';
 		const caption = content.caption?.text ? ' ' + content.caption.text : '';
 		switch (content['@type']) {
@@ -174,14 +177,14 @@
 
 	function chatFrom(c: any): Chat {
 		const main = (c.positions ?? []).find((p: any) => p.list?.['@type'] === 'chatListMain');
-		return { id: c.id, title: c.title || '—', order: main?.order ?? '0', unread: c.unread_count ?? 0, last: words(c.last_message?.content) };
+		return { id: c.id, title: plain(c.title || '—'), order: main?.order ?? '0', unread: c.unread_count ?? 0, last: words(c.last_message?.content) };
 	}
 
 	async function userName(id: number) {
 		if (!id || users[id] !== undefined) return;
 		users[id] = '';
 		const u = await request({ '@type': 'getUser', user_id: id });
-		if (u['@type'] === 'user') users[id] = [u.first_name, u.last_name].filter(Boolean).join(' ');
+		if (u['@type'] === 'user') users[id] = plain([u.first_name, u.last_name].filter(Boolean).join(' '));
 	}
 
 	// ── what TDLib says ──
@@ -192,7 +195,7 @@
 		if (type === 'updateNewChat') {
 			chats[u.chat.id] = chatFrom(u.chat);
 		} else if (type === 'updateChatTitle' && chats[u.chat_id]) {
-			chats[u.chat_id].title = u.title;
+			chats[u.chat_id].title = plain(u.title);
 		} else if (type === 'updateChatPosition' && chats[u.chat_id] && u.position?.list?.['@type'] === 'chatListMain') {
 			chats[u.chat_id].order = u.position.order;
 		} else if (type === 'updateChatLastMessage' && chats[u.chat_id]) {

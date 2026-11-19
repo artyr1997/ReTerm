@@ -1,5 +1,7 @@
 // the titles, as ReFile's
 import '@fontsource/kurale/400.css';
+// the emoji in one colour (app.css --font)
+import '@fontsource/noto-emoji/400.css';
 // the side buttons' lettering, as the other Re apps'
 import '@fontsource/noto-sans-jp/400.css';
 // the terminal's answers: Noto of one width

@@ -8,6 +8,7 @@
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
 	import History from './History.svelte';
 	import { scrollFade } from './scrollFade';
+	import { plain } from './emoji';
 
 	let { active = false }: { active?: boolean } = $props();
 
@@ -105,7 +106,7 @@
 			.filter((c) => c.messages.length || c.id === shownId)
 			.sort((a, b) => (a.messages.length ? 1 : 0) - (b.messages.length ? 1 : 0) || b.last - a.last),
 	);
-	const title = (c: Conversation) => (c.messages.find((m) => m.me)?.text ?? 'NOVA').split('\n')[0].slice(0, 80);
+	const title = (c: Conversation) => plain((c.messages.find((m) => m.me)?.text ?? 'NOVA').split('\n')[0].slice(0, 80));
 	const when = (ms: number) => new Date(ms).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 	// ── a little markdown: code blocks, `code`, **bold**, headings ──
@@ -120,7 +121,7 @@
 	}
 
 	function markdown(text: string) {
-		return text
+		return plain(text)
 			.split('```')
 			.map((part, i) => (i % 2 ? `<span class="code">${escapeHTML(part.replace(/^[^\n]*\n/, '').replace(/\n$/, ''))}</span>` : inline(part)))
 			.join('');
@@ -357,7 +358,7 @@
 	<div class="list" bind:this={list} use:scrollFade>
 		{#each messages as message (message.id)}
 			{#if message.me}
-				<div class="said">{message.text}</div>
+				<div class="said">{plain(message.text)}</div>
 			{:else}
 				<div class="answer" class:coming={message.coming}>
 					{@html markdown(message.text)}{#if message.coming && !message.text}<span class="busy">⋯</span>{/if}

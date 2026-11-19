@@ -74,8 +74,9 @@ body {
 /* ── Glass (ReDesk's Settings › Glass windows): the window is the blur of what is behind it
    (lib/glass.ts), the page clear on it, written in the desk's ink: white, as the words on the desk. ── */
 html.glass {
-	--font: 'M PLUS 1p', sans-serif;
-	--mono: 'Noto Sans Mono', 'M PLUS 1p', monospace;
+	/* the emoji in one colour, the ink's: Noto Emoji, vector, before the Mac's colour ones */
+	--font: 'M PLUS 1p', 'Noto Emoji', sans-serif;
+	--mono: 'Noto Sans Mono', 'M PLUS 1p', 'Noto Emoji', monospace;
 	--bg: #1f2023 !important;
 	--text: rgba(255, 255, 255, 0.8) !important;
 	--line: rgba(255, 255, 255, 0.5) !important;
@@ -355,6 +356,6 @@ html.full {
 
 /* on glass every word is in M PLUS 1p, as in the other apps: the title too */
 html.glass .shown-title {
-	font-family: 'M PLUS 1p', sans-serif;
+	font-family: 'M PLUS 1p', 'Noto Emoji', sans-serif;
 	letter-spacing: 0;
 }
