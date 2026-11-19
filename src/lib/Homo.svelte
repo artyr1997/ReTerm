@@ -681,7 +681,7 @@
 				/>
 			{/if}
 			{#if problem}<p class="problem">{problem}</p>{/if}
-			{#if stage !== 'missing' && stage !== 'closed'}<button class="go" type="submit">→</button>{/if}
+			{#if stage !== 'missing' && stage !== 'closed'}<button class="go" type="submit">&gt;</button>{/if}
 		</form>
 	{/if}
 </div>
