@@ -24,7 +24,7 @@
 		items: Item[];
 		shown?: number | string | null;
 		pick: (id: number | string) => void;
-		/** NEW, always at the top: a new conversation (inked while it is the one shown) */
+		/** NOVA, always at the top: a new conversation (inked while it is the one shown) */
 		fresh?: () => void;
 		freshShown?: boolean;
 	} = $props();
@@ -33,7 +33,7 @@
 <nav class="history" use:scrollFade>
 	{#if fresh}
 		<button class="item" class:shown={freshShown} onclick={fresh}>
-			<span class="title"><span class:ink-mark={freshShown}>{t('NEW')}</span></span>
+			<span class="title"><span class:ink-mark={freshShown}>{t('NOVA')}</span></span>
 		</button>
 	{/if}
 	{#each items as item (item.id)}

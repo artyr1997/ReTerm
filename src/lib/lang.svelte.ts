@@ -10,7 +10,7 @@ const japanese: Record<string, string> = {
 	HOMO: '人と話す',
 	CHAT: '人工知能',
 	FULL: '全画面化',
-	NEW: '新規作成',
+	NOVA: '新規作成',
 };
 
 // the longer words: the line to type, the conversations
