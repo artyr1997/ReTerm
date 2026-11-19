@@ -2,7 +2,8 @@
 	// HOMO: conversations with people, through Telegram (TDLib: src-tauri/src/tg.rs). Signed in once (the app's
 	// api_id and api_hash from my.telegram.org, then the phone, its code, the password if there is one), it
 	// stays so. The chats on the left, the one open on the right as TERM's and CHAT's: what I say on the
-	// right, theirs on the left, the line to type at the bottom. ⌥↑ / ⌥↓ the chat above / below.
+	// right, theirs on the left, the line to type at the bottom. ⌥↑ / ⌥↓ the chat above / below. NEW: someone
+	// to write to, found by @username, phone number or name.
 	import { onMount, tick } from 'svelte';
 	import { invoke } from '@tauri-apps/api/core';
 	import { listen } from '@tauri-apps/api/event';
@@ -262,6 +263,9 @@
 	async function openChat(id: number) {
 		if (open === id) return;
 		if (open !== null) tell({ '@type': 'closeChat', chat_id: open });
+		find = '';
+		found = [];
+		problem = '';
 		open = id;
 		messages = [];
 		tell({ '@type': 'openChat', chat_id: id });
@@ -281,6 +285,62 @@
 		if (messages.length && active) tell({ '@type': 'viewMessages', chat_id: id, message_ids: messages.slice(-50).map((m) => m.id), force_read: true });
 		stickToBottom(true);
 		field?.focus();
+	}
+
+	// ── NEW: someone to write to ──
+
+	let find = $state('');
+	let findField: HTMLInputElement | undefined = $state();
+	let found: { id: number; title: string }[] = $state([]);
+	let finding = $state(false);
+
+	function fresh() {
+		if (open !== null) tell({ '@type': 'closeChat', chat_id: open });
+		open = null;
+		messages = [];
+		problem = '';
+		tick().then(() => findField?.focus());
+	}
+
+	const chatOf = async (userId: number) => {
+		const c = await request({ '@type': 'createPrivateChat', user_id: userId, force: false });
+		return c['@type'] === 'chat' ? c : null;
+	};
+
+	/** what was typed: a phone number, an @username, or a name among the chats and contacts */
+	async function search() {
+		const q = find.trim();
+		if (!q) return (found = []);
+		finding = true;
+		problem = '';
+		const results = new Map<number, string>();
+		const add = (c: any) => c?.['@type'] === 'chat' && results.set(c.id, c.title || '—');
+		if (/^\+?[\d\s()-]{5,}$/.test(q)) {
+			const u = await request({ '@type': 'searchUserByPhoneNumber', phone_number: q.replace(/[^\d]/g, '') });
+			if (u['@type'] === 'user') add(await chatOf(u.id));
+		} else {
+			const name = q.replace(/^@/, '');
+			const [mine, contacts, pub] = await Promise.all([
+				request({ '@type': 'searchChats', query: q, limit: 20 }),
+				request({ '@type': 'searchContacts', query: q, limit: 20 }),
+				/^[A-Za-z][\w]{3,}$/.test(name) ? request({ '@type': 'searchPublicChat', username: name }) : Promise.resolve(null),
+			]);
+			add(pub);
+			for (const id of mine.chat_ids ?? []) add(chats[id] ? { '@type': 'chat', id, title: chats[id].title } : await request({ '@type': 'getChat', chat_id: id }));
+			for (const id of contacts.user_ids ?? []) add(await chatOf(id));
+		}
+		found = [...results].map(([id, title]) => ({ id, title }));
+		finding = false;
+		if (!found.length) problem = 'No one found.';
+	}
+
+	async function findKey(e: KeyboardEvent) {
+		if (e.key !== 'Enter' || e.isComposing) return;
+		e.preventDefault();
+		// a second Enter, the same words: the first found
+		if (found.length && !finding) return openChat(found[0].id);
+		await search();
+		if (found.length === 1) openChat(found[0].id);
 	}
 
 	async function send() {
@@ -344,6 +404,8 @@
 				step(e.key === 'ArrowUp' ? -1 : 1);
 			} else if (!e.metaKey && !e.ctrlKey && !e.altKey && open !== null && document.activeElement !== field) {
 				field?.focus();
+			} else if (!e.metaKey && !e.ctrlKey && !e.altKey && open === null && document.activeElement !== findField) {
+				findField?.focus();
 			}
 		};
 		addEventListener('keydown', keys);
@@ -383,7 +445,8 @@
 			if (stage === 'ready' && open !== null) {
 				field?.focus();
 				if (messages.length) tell({ '@type': 'viewMessages', chat_id: open, message_ids: messages.slice(-50).map((m) => m.id), force_read: true });
-			} else askField?.focus();
+			} else if (stage === 'ready') findField?.focus();
+			else askField?.focus();
 		});
 	});
 </script>
@@ -395,6 +458,8 @@
 			items={ordered.map((c) => ({ id: c.id, title: c.title, badge: c.unread || undefined }))}
 			shown={open}
 			pick={(id) => openChat(Number(id))}
+			{fresh}
+			freshShown={open === null}
 		/>
 		<section class="talk">
 			{#if open !== null}
@@ -409,7 +474,15 @@
 					<textarea bind:this={field} bind:value={input} rows="1" spellcheck="false" oninput={grow} onkeydown={keydown}></textarea>
 				</div>
 			{:else}
-				<p class="quiet">⌥↑ ⌥↓</p>
+				<div class="find">
+					<p class="note">@username, the phone number, or a name</p>
+					<input bind:this={findField} bind:value={find} oninput={() => (found = [])} onkeydown={findKey} spellcheck="false" />
+					{#if finding}<p class="note">⋯</p>{/if}
+					{#each found as f (f.id)}
+						<button class="found" onclick={() => openChat(f.id)}>{f.title}</button>
+					{/each}
+					{#if problem}<p class="problem">{problem}</p>{/if}
+				</div>
 			{/if}
 		</section>
 	{:else if stage === 'loading'}
@@ -521,6 +594,27 @@
 		font: inherit;
 		line-height: 1.25;
 		outline: none;
+	}
+
+	.find {
+		margin: auto 0;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.found {
+		align-self: flex-start;
+		background: transparent;
+		border: none;
+		color: var(--text);
+		font: inherit;
+		opacity: 0.75;
+		cursor: pointer;
+	}
+
+	.found:hover {
+		opacity: 1;
 	}
 
 	.quiet {

@@ -233,7 +233,7 @@
 
 	/** a new conversation: the one before kept on the left (one said nothing in: it is the new one) */
 	function fresh() {
-		if (shown && !shown.messages.length) return;
+		if (shown && !shown.messages.length) return void tick().then(() => field?.focus());
 		const now = Date.now();
 		conversations.push({ id: now, started: now, last: now, messages: [], sessions: {} });
 		shownId = now;
@@ -347,9 +347,11 @@
 <div class="page" class:hidden={!active} onclick={pageClick}>
 	{#if shown}<h1 class="shown-title">{title(shown)}</h1>{/if}
 	<History
-		items={listed.map((c) => ({ id: c.id, title: title(c), hint: when(c.started) }))}
+		items={listed.filter((c) => c.messages.length).map((c) => ({ id: c.id, title: title(c), hint: when(c.started) }))}
 		shown={shownId}
 		pick={(id) => show(Number(id))}
+		{fresh}
+		freshShown={!!shown && !shown.messages.length}
 	/>
 	<div class="talk">
 	<div class="list" bind:this={list} use:scrollFade>

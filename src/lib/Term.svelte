@@ -195,6 +195,8 @@
 
 	/** ⌘K: this session kept on the left, a new one begun (a command running goes on in it) */
 	function newSession() {
+		// this one new yet: it is the new one
+		if (!blocks.some((b) => b.command !== null)) return void tick().then(() => field?.focus());
 		keepSession();
 		blocks = blocks.filter((b) => b.term);
 		sessionId = Date.now();
@@ -818,7 +820,13 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="page" class:hidden={!active || full || mode !== 'chat'} style="--size: {fontSize}px;" onclick={pageClick}>
 	<h1 class="shown-title">{sessionTitle(blocks, place)}</h1>
-	<History items={listed} shown={sessionId} {pick} />
+	<History
+		items={listed.filter((l) => l.id !== sessionId || blocks.some((b) => b.command !== null))}
+		shown={sessionId}
+		{pick}
+		fresh={newSession}
+		freshShown={!blocks.some((b) => b.command !== null)}
+	/>
 	<div class="talk">
 	<div class="chat" bind:this={chat} use:scrollFade>
 		{#each blocks as block (block.id)}
