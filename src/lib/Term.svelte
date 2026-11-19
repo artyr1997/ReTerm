@@ -6,7 +6,8 @@
 	// A program that takes the whole screen (vim, htop, less…) has the whole window while it runs. Another
 	// shell than zsh: a plain terminal. When the shell ends, the window closes.
 	// Each session is kept (its commands and their answers as text): ⌘K starts a new one, the ones before
-	// are on the left (History), to look at again; ⌥↑ / ⌥↓ the one above / below, a key typed the live one.
+	// are on the left (History), each to go on with (the shell goes to where it was); ⌥↑ / ⌥↓ the one
+	// above / below.
 	import { onMount, tick } from 'svelte';
 	import { invoke } from '@tauri-apps/api/core';
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -139,8 +140,9 @@
 		id: number;
 		started: number;
 		last: number;
-		/** where it was last */
+		/** where it was last: as shown, and the folder (to go back to) */
 		place: string;
+		cwd?: string;
 		blocks: Kept[];
 	}
 	const SESSIONS = 'sessions';
@@ -150,12 +152,10 @@
 	/** one answer kept, at most: its end */
 	const ANSWER = 100_000;
 
-	let sessionId = Date.now();
-	let started = sessionId;
+	const begun = Date.now();
+	let sessionId = $state(begun);
+	let started = $state(begun);
 	let past: Session[] = $state([]);
-	/** a session before, looked at; null: the live one */
-	let viewing: number | null = $state(null);
-	const viewed = $derived(viewing === null ? null : past.find((p) => p.id === viewing) ?? null);
 
 	function storedSessions(): Session[] {
 		try {
@@ -179,7 +179,7 @@
 		const others = storedSessions().filter((p) => p.id !== sessionId);
 		let all = others;
 		if (done.some((b) => b.command !== null)) {
-			all = [{ id: sessionId, started, last: Date.now(), place, blocks: done.map(keptOf) }, ...others];
+			all = [{ id: sessionId, started, last: Date.now(), place, cwd, blocks: done.map(keptOf) }, ...others];
 		}
 		all = all.sort((a, b) => b.last - a.last).slice(0, MOST);
 		let json = JSON.stringify(all);
@@ -199,7 +199,6 @@
 		blocks = blocks.filter((b) => b.term);
 		sessionId = Date.now();
 		started = sessionId;
-		viewing = null;
 		past = storedSessions().filter((p) => p.id !== sessionId);
 		tick().then(() => field?.focus());
 	}
@@ -208,29 +207,43 @@
 		(kept.find((b) => b.command !== null)?.command ?? where ?? '~').split('\n')[0].slice(0, 80) || '~';
 	const when = (ms: number) => new Date(ms).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-	const listed = $derived([
-		{ id: 'now', title: sessionTitle(blocks, place), hint: place },
-		...past.map((p) => ({ id: p.id, title: sessionTitle(p.blocks, p.place), hint: `${when(p.started)} · ${p.place}` })),
-	]);
+	/** all of them, the newest begun first (one gone on with keeps its place) */
+	const listed = $derived(
+		[
+			{ id: sessionId, started, title: sessionTitle(blocks, place), hint: place },
+			...past.map((p) => ({ id: p.id, started: p.started, title: sessionTitle(p.blocks, p.place), hint: `${when(p.started)} · ${p.place}` })),
+		].sort((a, b) => b.started - a.started),
+	);
 
+	const quote = (path: string) => "'" + path.replace(/'/g, "'\\''") + "'";
+
+	/** a session before, gone on with: its commands and answers here again, the shell where it was
+	 * (this one kept on the left; a command running goes on in it) */
 	function pick(id: number | string) {
-		viewing = id === 'now' ? null : Number(id);
-		tick().then(() => {
-			if (viewing === null) {
-				stickToBottom(true);
-				field?.focus();
-			} else if (oldChat) oldChat.scrollTop = oldChat.scrollHeight;
-		});
+		const session = past.find((p) => p.id === Number(id));
+		if (!session) return tick().then(() => field?.focus());
+		keepSession();
+		const running = blocks.filter((b) => b.term);
+		blocks = [
+			...session.blocks.map((k) => ({ id: nextId++, command: k.command, host: null, term: null, height: 0, html: k.html, status: k.status, fullscreen: k.fullscreen })),
+			...running,
+		];
+		sessionId = session.id;
+		started = session.started;
+		past = storedSessions().filter((p) => p.id !== sessionId);
+		const folder = session.cwd ?? (session.place.startsWith('~') && home ? home + session.place.slice(1) : session.place);
+		// a cd of its own, with no message (its answer, none, not kept)
+		if (folder && folder !== cwd && shell === 'idle' && mode === 'chat') send(` cd ${quote(folder)}\r`);
+		stickToBottom(true);
+		tick().then(() => field?.focus());
 	}
 
 	/** ⌥↑ / ⌥↓: the session above / below on the left */
 	function step(by: number) {
-		const at = listed.findIndex((l) => l.id === (viewing ?? 'now'));
+		const at = listed.findIndex((l) => l.id === sessionId);
 		const next = listed[Math.min(listed.length - 1, Math.max(0, at + by))];
 		if (next) pick(next.id);
 	}
-
-	let oldChat: HTMLDivElement | undefined = $state();
 
 	const send = (data: string) => invoke('pty_write', { data }).catch(() => {});
 
@@ -774,16 +787,7 @@
 			// typing anywhere goes to the line
 			const anyKey = (e: KeyboardEvent) => {
 				if (!active || full || mode === 'plain') return;
-				if (viewing !== null && e.altKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-					e.preventDefault();
-					return step(e.key === 'ArrowUp' ? -1 : 1);
-				}
 				if (e.metaKey || e.ctrlKey || e.altKey) return;
-				// a session before looked at: a key typed is for the live one
-				if (viewing !== null) {
-					viewing = null;
-					stickToBottom(true);
-				}
 				const at = document.activeElement;
 				if (at === field || at?.closest('.live')) return;
 				field?.focus();
@@ -813,22 +817,10 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="page" class:hidden={!active || full || mode !== 'chat'} style="--size: {fontSize}px;" onclick={pageClick}>
-	<h1 class="shown-title">{viewed ? sessionTitle(viewed.blocks, viewed.place) : listed[0].title}</h1>
-	<History items={listed} shown={viewing ?? 'now'} {pick} />
+	<h1 class="shown-title">{sessionTitle(blocks, place)}</h1>
+	<History items={listed} shown={sessionId} {pick} />
 	<div class="talk">
-	{#if viewed}
-		<div class="chat" bind:this={oldChat} use:scrollFade>
-			{#each viewed.blocks as block, i (i)}
-				{#if block.command !== null}<div class="said">{block.command}</div>{/if}
-				{#if block.html}<pre class="answer">{@html block.html}</pre>{:else if block.fullscreen}<p class="note">⋯</p>{/if}
-				{#if block.status !== null && block.status !== 0}<p class="status">✕ {block.status}</p>{/if}
-			{/each}
-		</div>
-		<div class="type">
-			<p class="where">{when(viewed.started)} · {viewed.place}</p>
-		</div>
-	{/if}
-	<div class="chat" class:away={!!viewed} bind:this={chat} use:scrollFade>
+	<div class="chat" bind:this={chat} use:scrollFade>
 		{#each blocks as block (block.id)}
 			{#if block.command !== null}
 				<div class="said" class:running={block.status === null}>{block.command}</div>
@@ -846,7 +838,7 @@
 		{/each}
 	</div>
 
-	<div class="type" class:away={!!viewed}>
+	<div class="type">
 		{#if hints.length}
 			<div class="hints">{#each hints as hint}<span>{hint}</span>{/each}</div>
 		{/if}
@@ -896,10 +888,6 @@
 		flex-direction: column;
 	}
 
-	/* the live session, while one before is looked at */
-	.away {
-		display: none !important;
-	}
 
 	.page.hidden {
 		visibility: hidden;
