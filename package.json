@@ -11,6 +11,7 @@
 		"desktop:build": "tauri build"
 	},
 	"dependencies": {
+		"@fontsource/kurale": "^5.3.0",
 		"@fontsource/m-plus-1p": "^5.3.0",
 		"@fontsource/noto-sans-jp": "^5.3.1",
 		"@fontsource/noto-sans-mono": "^5.3.0",

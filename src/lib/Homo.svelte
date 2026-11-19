@@ -390,6 +390,7 @@
 
 <div class="page" class:hidden={!active}>
 	{#if stage === 'ready'}
+		{#if open !== null}<h1 class="shown-title">{chats[open]?.title ?? ''}</h1>{/if}
 		<History
 			items={ordered.map((c) => ({ id: c.id, title: c.title, badge: c.unread || undefined }))}
 			shown={open}
@@ -405,7 +406,6 @@
 					{/each}
 				</div>
 				<div class="type">
-					<p class="where">{chats[open]?.title ?? ''}</p>
 					<textarea bind:this={field} bind:value={input} rows="1" spellcheck="false" oninput={grow} onkeydown={keydown}></textarea>
 				</div>
 			{:else}
@@ -505,14 +505,6 @@
 		padding-top: 6px;
 	}
 
-	.where {
-		font-size: 0.8em;
-		opacity: 0.5;
-		margin-bottom: 4px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
 
 	textarea,
 	input {

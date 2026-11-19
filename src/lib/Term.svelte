@@ -813,6 +813,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="page" class:hidden={!active || full || mode !== 'chat'} style="--size: {fontSize}px;" onclick={pageClick}>
+	<h1 class="shown-title">{viewed ? sessionTitle(viewed.blocks, viewed.place) : listed[0].title}</h1>
 	<History items={listed} shown={viewing ?? 'now'} {pick} />
 	<div class="talk">
 	{#if viewed}

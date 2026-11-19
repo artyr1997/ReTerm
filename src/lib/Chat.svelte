@@ -345,6 +345,7 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="page" class:hidden={!active} onclick={pageClick}>
+	{#if shown}<h1 class="shown-title">{title(shown)}</h1>{/if}
 	<History
 		items={listed.map((c) => ({ id: c.id, title: title(c), hint: when(c.started) }))}
 		shown={shownId}
