@@ -29,6 +29,8 @@
 		text: string;
 		sender: number;
 		date: number;
+		/** a sticker: drawn as its outline (vector, in the ink), the words if it has none */
+		sticker?: { file: number; w: number; h: number; outline?: any[] };
 	}
 
 	/** where signing in is: what is asked for next */
@@ -114,8 +116,61 @@
 			text: words(m.content),
 			sender: m.sender_id?.user_id ?? m.sender_id?.chat_id ?? 0,
 			date: m.date,
+			sticker: stickerOf(m.content),
 		};
 	}
+
+	// ── stickers as their outlines: Telegram's vector contour of each (the one it shows while the sticker
+	// loads), filled in the ink: black and white, sharp at any size, nothing downloaded ──
+
+	function stickerOf(content: any): Message['sticker'] {
+		const st = content?.['@type'] === 'messageSticker' ? content.sticker : null;
+		if (!st?.sticker?.id) return undefined;
+		return { file: st.sticker.id, w: st.width || 512, h: st.height || 512, outline: st.outline };
+	}
+
+	/** each sticker's outline as an SVG path ('' when it has none), by its file */
+	let outlines: Record<number, string> = $state({});
+	const asking = new Set<number>();
+
+	const point = (p: any) => `${+p.x.toFixed(1)} ${+p.y.toFixed(1)}`;
+
+	/** TDLib's closed vector paths: each starts where its last command ends */
+	function pathOf(paths: any[]): string {
+		return (paths ?? [])
+			.map((path: any) => {
+				const commands = path.commands ?? [];
+				if (!commands.length) return '';
+				let d = 'M' + point(commands[commands.length - 1].end_point);
+				for (const c of commands) {
+					if (c['@type'] === 'vectorPathCommandCubicBezierCurve') d += `C${point(c.start_control_point)} ${point(c.end_control_point)} ${point(c.end_point)}`;
+					else d += 'L' + point(c.end_point);
+				}
+				return d + 'Z';
+			})
+			.join('');
+	}
+
+	async function outlineOf(sticker: NonNullable<Message['sticker']>) {
+		const file = sticker.file;
+		if (file in outlines || asking.has(file)) return;
+		// older TDLib: the outline comes with the sticker
+		if (sticker.outline?.length) return (outlines[file] = pathOf(sticker.outline));
+		asking.add(file);
+		const ask = { sticker_file_id: file, for_animated_emoji: false, for_clicked_animated_emoji_message: false };
+		// newer TDLib gives it as an SVG path at once; else its commands
+		const svg = await request({ '@type': 'getStickerOutlineSvgPath', ...ask });
+		if (svg['@type'] === 'text' && svg.text) outlines[file] = svg.text;
+		else {
+			const r = await request({ '@type': 'getStickerOutline', ...ask });
+			outlines[file] = r['@type'] === 'outline' ? pathOf(r.paths) : '';
+		}
+		asking.delete(file);
+	}
+
+	$effect(() => {
+		for (const m of messages) if (m.sticker) outlineOf(m.sticker);
+	});
 
 	function chatFrom(c: any): Chat {
 		const main = (c.positions ?? []).find((p: any) => p.list?.['@type'] === 'chatListMain');
@@ -159,7 +214,10 @@
 			if (i >= 0) messages[i] = toMessage(u.message);
 		} else if (type === 'updateMessageContent' && u.chat_id === open) {
 			const m = messages.find((x) => x.id === u.message_id);
-			if (m) m.text = words(u.new_content);
+			if (m) {
+				m.text = words(u.new_content);
+				m.sticker = stickerOf(u.new_content);
+			}
 		} else if (type === 'updateDeleteMessages' && u.chat_id === open && u.is_permanent) {
 			messages = messages.filter((x) => !u.message_ids.includes(x.id));
 		}
@@ -466,7 +524,9 @@
 				<div class="list" bind:this={list} use:scrollFade>
 					{#each messages as m (m.id)}
 						<div class="message" class:mine={m.mine} title={time(m.date)}>
-							{#if isGroup && !m.mine && users[m.sender]}<span class="who">{users[m.sender]}</span>{/if}{m.text}
+							{#if isGroup && !m.mine && users[m.sender]}<span class="who">{users[m.sender]}</span>{/if}{#if m.sticker && outlines[m.sticker.file]}<svg
+									class="sticker" viewBox="0 0 {m.sticker.w} {m.sticker.h}" role="img" aria-label={m.text}><path d={outlines[m.sticker.file]} /></svg
+								>{:else}{m.text}{/if}
 						</div>
 					{/each}
 				</div>
@@ -561,6 +621,18 @@
 		overflow-wrap: anywhere;
 		user-select: text;
 		cursor: text;
+	}
+
+	/* a sticker's outline, in the ink */
+	.sticker {
+		display: block;
+		height: 110px;
+		width: auto;
+		max-width: 100%;
+	}
+
+	.sticker path {
+		fill: var(--text);
 	}
 
 	.message.mine {
