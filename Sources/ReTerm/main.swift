@@ -34,7 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// the last window gone: so is ReTerm, as nothing is left to it
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    // quits when its last window is closed, not when its windows are put away on another of ReDesk's desktops
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { putAway.isEmpty }
 
     func applicationWillTerminate(_ notification: Notification) {
         for case let w as TermWindow in NSApp.windows {
