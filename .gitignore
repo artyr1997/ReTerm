@@ -1,5 +1,8 @@
-node_modules
-dist
-src-tauri/target
-src-tauri/gen
+build/
+.build/
 .DS_Store
+# what the Tauri version left on this Mac
+node_modules/
+dist/
+src-tauri/
+.svelte-kit/
