@@ -42,8 +42,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             w.main.leave()
             w.main.end()
         }
-        // gone at once: TDLib's own clearing away (C++'s, at exit) pulls its library from under its thread
-        // still listening, which crashed ReTerm on every quit
         _exit(0)
     }
 

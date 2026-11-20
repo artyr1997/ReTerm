@@ -1,6 +1,6 @@
 import AppKit
 
-// What TERM, HOMO and CHAT share: the history of conversations on the left, the one shown (its newest at
+// What TERM and CHAT share: the history of conversations on the left, the one shown (its newest at
 // the bottom, as a conversation), the line to type under it, and its name at the top.
 
 // ── the history: the conversations' names, the one shown underlined; a click shows it ──

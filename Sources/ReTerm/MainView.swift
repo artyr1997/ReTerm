@@ -1,10 +1,10 @@
 import AppKit
 
-// ReTerm: three ways to talk, as the other Re apps have their side buttons: TERM the shell, HOMO people
-// (Telegram), CHAT an LLM (claude, codex). Each goes on while another is shown. FULL: the one shown has the
-// whole window, the buttons go (⌘⇧F back).
+// ReTerm: two ways to talk, as the other Re apps have their side buttons: TERM the shell, CHAT an LLM (claude,
+// codex). Each goes on while the other is shown. NOVA: a new conversation in the one shown (⌘K). FULL: the
+// one shown has the whole window, the buttons go (⌘⇧F back).
 
-/// one of the three: laid out in the area between the side buttons, the history on its left
+/// one of the two: laid out in the area between the side buttons, the history on its left
 class ModePage: Flipped {
     weak var main: MainView?
     /// where the conversation is, and how wide its history (0: none)
@@ -21,7 +21,7 @@ class ModePage: Flipped {
         }
     }
 
-    /// the window opened: what it starts (the shell, Telegram…)
+    /// the window opened: what it starts (the shell…)
     func start() {}
     /// shown: the keys are its
     func shown() {}
@@ -38,12 +38,12 @@ class ModePage: Flipped {
     let modeName = label("", Fonts.buttons(12))
     /// a small window: a search over the history, on top of it
     let search = Field(size: 18, align: .left)
-    /// TERM, HOMO, CHAT
+    /// TERM, CHAT
     var modeWord: String { "" }
     /// the history the search looks through
     var historyList: HistoryList? { nil }
-    /// whether there is a history to search now (HOMO: signed in)
-    var searchable: Bool { true }
+    /// NOVA (⌘K): a new conversation
+    func nova() {}
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -71,7 +71,7 @@ class ModePage: Flipped {
         let W = bounds.width
         modeName.attributedStringValue = attributed(t(modeWord), Fonts.buttons(12), NSColor(white: 1, alpha: 0.48), kern: 3.6, align: .center)
         modeName.isHidden = !small
-        search.isHidden = !small || !searchable
+        search.isHidden = !small
         if search.isHidden && !search.stringValue.isEmpty {
             search.stringValue = ""
             historyList?.query = ""
@@ -90,12 +90,11 @@ class ModePage: Flipped {
 
 final class MainView: Flipped {
     let term = TermPage()
-    let homo = HomoPage()
     let chat = ChatPage()
-    private var pages: [String: ModePage] { ["term": term, "homo": homo, "chat": chat] }
+    private var pages: [String: ModePage] { ["term": term, "chat": chat] }
 
     private let termButton = SideButton("TERM") {}
-    private let homoButton = SideButton("HOMO") {}
+    private let novaButton = SideButton("NOVA") {}
     private let chatButton = SideButton("CHAT") {}
     private let fullButton = SideButton("FULL") {}
     private let marks = Marks()
@@ -108,10 +107,10 @@ final class MainView: Flipped {
     override init(frame: NSRect) {
         super.init(frame: frame)
         if let saved = Saved.json("view") as? [String: Any] {
-            if let m = saved["mode"] as? String, ["term", "homo", "chat"].contains(m) { mode = m }
+            if let m = saved["mode"] as? String, ["term", "chat"].contains(m) { mode = m }
             full = saved["full"] as? Bool ?? false
         }
-        for page in [term, homo, chat] {
+        for page in [term, chat] {
             page.main = self
             page.autoresizingMask = [.width, .height]
             page.isHidden = true
@@ -119,13 +118,13 @@ final class MainView: Flipped {
         }
         termButton.action = { [weak self] in self?.show("term") }
         termButton.title = "Terminal (⌘⇧T)"
-        homoButton.action = { [weak self] in self?.show("homo") }
-        homoButton.title = "People (⌘⇧H)"
+        novaButton.action = { [weak self] in self?.page?.nova() }
+        novaButton.title = "New conversation (⌘K)"
         chatButton.action = { [weak self] in self?.show("chat") }
         chatButton.title = "LLM (⌘⇧C)"
         fullButton.action = { [weak self] in self?.toggleFull() }
         fullButton.title = "The whole window (⌘⇧F)"
-        [termButton, homoButton, chatButton, fullButton].forEach(addSubview)
+        [termButton, novaButton, chatButton, fullButton].forEach(addSubview)
         addSubview(strip)
         addSubview(marks)
     }
@@ -133,7 +132,7 @@ final class MainView: Flipped {
     required init?(coder: NSCoder) { fatalError() }
 
     func start() {
-        for page in [term, homo, chat] { page.start(); tick("started \(type(of: page))") }
+        for page in [term, chat] { page.start(); tick("started \(type(of: page))") }
         show(mode)
     }
 
@@ -141,7 +140,6 @@ final class MainView: Flipped {
         mode = m
         for (name, page) in pages { page.active = name == m }
         termButton.chosen = m == "term"
-        homoButton.chosen = m == "homo"
         chatButton.chosen = m == "chat"
         keep()
     }
@@ -159,12 +157,12 @@ final class MainView: Flipped {
 
     var page: ModePage? { pages[mode] }
 
-    func leave() { for p in [term, homo, chat] { p.leave() } }
-    func end() { for p in [term, homo, chat] { p.end() } }
+    func leave() { for p in [term, chat] { p.leave() } }
+    func end() { for p in [term, chat] { p.end() } }
 
     func focusChanged(_ focused: Bool) {
         marks.focused = focused
-        for p in [term, homo, chat] { p.focusChanged(focused) }
+        for p in [term, chat] { p.focusChanged(focused) }
     }
 
     // ── laid out: the area between the side buttons, or the whole window (FULL, or a small window) ──
@@ -184,7 +182,7 @@ final class MainView: Flipped {
             let top = H * 0.0625 + 24
             area = NSRect(x: side, y: top, width: max(0, W - side * 2), height: max(0, H - top * 2))
         }
-        for p in [term, homo, chat] {
+        for p in [term, chat] {
             p.area = area
             p.list = list
             p.small = small
@@ -192,7 +190,7 @@ final class MainView: Flipped {
             p.needsLayout = true
         }
         fullButton.chosen = full
-        for (b, c) in [(termButton, Corner.topLeft), (homoButton, .topRight), (chatButton, .bottomLeft), (fullButton, .bottomRight)] {
+        for (b, c) in [(termButton, Corner.topLeft), (novaButton, .topRight), (chatButton, .bottomLeft), (fullButton, .bottomRight)] {
             let h = CGFloat(b.shown.count) * SideButton.advance + SideButton.size * 0.55
             b.top = true
             let left = c == .topLeft || c == .bottomLeft
@@ -212,7 +210,6 @@ final class MainView: Flipped {
         if mods == [.command, .shift] {
             switch e.keyCode {
             case 17: show("term"); return true
-            case 4: show("homo"); return true
             case 8: show("chat"); return true
             case 3: toggleFull(); return true
             default: break

@@ -71,6 +71,7 @@ private final class Answer {
 final class ChatPage: ModePage {
     private let history = HistoryList()
     override var modeWord: String { "CHAT" }
+    override func nova() { fresh() }
     override var historyList: HistoryList? { history }
     private let talkScroll: FadeScroll
     private let talk: Transcript

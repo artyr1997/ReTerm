@@ -1,7 +1,7 @@
 import AppKit
 
-// --render <dir>: the three drawn into pictures, out of sight, from what is made up in a folder of its own:
-// a few commands run in /tmp, a conversation with an LLM; Telegram not started.
+// --render <dir>: the two drawn into pictures, out of sight, from what is made up in a folder of its own:
+// a few commands run in /tmp, a conversation with an LLM.
 
 enum Render {
     static func run(into dir: String) {
@@ -9,7 +9,6 @@ enum Render {
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         Saved.root = root
         TermPage.userFiles = root.path
-        HomoPage.off = true
         let t = Date().timeIntervalSince1970 * 1000
         Saved.setJSON("chats", ["provider": "claude", "conversations": [
             ["id": t, "started": t, "last": t, "sessions": [:], "messages": [
@@ -25,7 +24,7 @@ enum Render {
             w.main.term.typeForRender(["cd /tmp", "echo 'hello from ReTerm'", "printf '\\e[31mred\\e[0m \\e[32mgreen\\e[0m \\e[1mbold\\e[0m\\n'", "false"])
             let until = Date().addingTimeInterval(4)
             while Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
-            for mode in ["term", "chat", "homo"] {
+            for mode in ["term", "chat"] {
                 w.main.show(mode)
                 RunLoop.main.run(until: Date().addingTimeInterval(0.3))
                 shoot(w, "\(dir)/\(mode)-\(name).png")

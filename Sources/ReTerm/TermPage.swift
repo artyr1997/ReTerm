@@ -58,6 +58,7 @@ private final class Sink: TerminalDelegate {
 final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
     private let history = HistoryList()
     override var modeWord: String { "TERM" }
+    override func nova() { newSession() }
     override var historyList: HistoryList? { history }
     private let talkScroll: FadeScroll
     private let talk: Transcript

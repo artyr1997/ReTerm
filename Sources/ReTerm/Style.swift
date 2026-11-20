@@ -90,7 +90,7 @@ final class Lang {
     // four characters each, as the English words are four letters
     // four characters each, as the English words are four letters
     private let words: [String: String] = [
-        "TERM": "端末画面", "HOMO": "人と話す", "CHAT": "人工知能", "FULL": "全画面化", "NOVA": "新規作成",
+        "TERM": "端末画面", "CHAT": "人工知能", "FULL": "全画面化", "NOVA": "新規作成",
     ]
 
     private let texts: [String: String] = [:]

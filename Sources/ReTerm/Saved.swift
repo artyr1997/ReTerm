@@ -1,12 +1,12 @@
 import Foundation
 import SQLite3
 
-// What ReTerm keeps between launches: the terminal's sessions, CHAT's conversations, the Telegram app's keys,
+// What ReTerm keeps between launches: the terminal's sessions, CHAT's conversations,
 // the mode shown, the letters' size. Each a JSON text in a file of its own, as the app kept them before in its
 // web view's storage; those are brought over once, the first time.
 
 enum Saved {
-    /// the app's own folder (TDLib's database and CHAT's folder are in it too)
+    /// the app's own folder (CHAT's folder is in it too)
     /// another folder in its place (--render draws its pages from what it makes up there)
     static var root: URL?
 
