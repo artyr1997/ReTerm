@@ -93,7 +93,9 @@ final class Lang {
         "TERM": "端末画面", "CHAT": "人工知能", "FULL": "全画面化", "NOVA": "新規作成",
     ]
 
-    private let texts: [String: String] = [:]
+    private let texts: [String: String] = [
+        "Search": "検索",
+    ]
 
     // The language turning, as on a departures board: each letter runs through others (Latin and katakana)
     // before it stops at its new one, the first soonest, the next a little later.
