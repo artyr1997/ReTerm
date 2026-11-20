@@ -118,7 +118,6 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
         }
         addSubview(title)
         history.pick = { [weak self] id in self?.pick(id) }
-        history.fresh = { [weak self] in self?.newSession() }
         addSubview(history)
         talk.onWidth = { [weak self] _ in self?.render() }
         addSubview(talkScroll)
@@ -553,7 +552,6 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
         let fresh = !blocks.contains { $0.command != nil }
         history.items = listed.filter { $0.id != sessionId || !fresh }.map { Item(id: String($0.id), title: $0.title, hint: $0.hint) }
         history.shown = String(sessionId)
-        history.freshShown = fresh
     }
 
     /// a session before, gone on with: its commands and answers here again, the shell where it was

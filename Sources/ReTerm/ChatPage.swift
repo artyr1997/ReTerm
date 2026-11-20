@@ -101,7 +101,6 @@ final class ChatPage: ModePage {
         super.init(frame: frame)
         addSubview(title)
         history.pick = { [weak self] id in self?.show(Double(id) ?? 0) }
-        history.fresh = { [weak self] in self?.fresh() }
         addSubview(history)
         talk.onWidth = { [weak self] _ in self?.render() }
         addSubview(talkScroll)
@@ -190,7 +189,6 @@ final class ChatPage: ModePage {
     private func refreshHistory() {
         history.items = listed.filter { !$0.messages.isEmpty }.map { Item(id: String($0.id), title: titleOf($0), hint: when($0.started)) }
         history.shown = String(shownId)
-        history.freshShown = shownConversation?.messages.isEmpty ?? false
         title.stringValue = shownConversation.map(titleOf) ?? ""
     }
 

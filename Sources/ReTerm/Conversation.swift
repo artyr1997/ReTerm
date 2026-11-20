@@ -17,9 +17,6 @@ final class HistoryList: Flipped {
     private let doc = RowsDrawer()
     var items: [Item] = [] { didSet { relayout() } }
     var shown: String? { didSet { doc.needsDisplay = true } }
-    /// NOVA, always at the top: a new conversation (underlined while it is the one shown)
-    var fresh: (() -> Void)?
-    var freshShown = false { didSet { doc.needsDisplay = true } }
     var pick: ((String) -> Void)?
     /// only the ones whose name has this (the search)
     var query = "" { didSet { relayout() } }
@@ -44,7 +41,6 @@ final class HistoryList: Flipped {
     private var rows: [(id: String?, title: String, badge: String?, on: Bool)] {
         var all: [(String?, String, String?, Bool)] = []
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        if fresh != nil && q.isEmpty { all.append((nil, t("NOVA"), nil, freshShown)) }
         for i in items where q.isEmpty || i.title.lowercased().contains(q) { all.append((i.id, i.title, i.badge, i.id == shown)) }
         return all
     }
@@ -79,7 +75,7 @@ final class HistoryList: Flipped {
         let i = Int(p.y / (rowH + gap))
         let all = rows
         guard i >= 0, i < all.count else { return }
-        if let id = all[i].id { pick?(id) } else { fresh?() }
+        if let id = all[i].id { pick?(id) }
     }
 
     func drawRows(in view: NSView) {
