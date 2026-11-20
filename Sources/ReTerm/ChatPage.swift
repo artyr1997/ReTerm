@@ -177,7 +177,7 @@ final class ChatPage: ModePage {
     }
 
     private func titleOf(_ c: Conversation) -> String {
-        let first = c.messages.first { $0.me }?.text ?? "NOVA"
+        let first = c.messages.first { $0.me }?.text ?? ""  // a new one: no name yet
         return plain(String((first.components(separatedBy: "\n").first ?? "").prefix(80)))
     }
 
