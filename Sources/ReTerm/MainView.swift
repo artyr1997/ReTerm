@@ -34,11 +34,57 @@ class ModePage: Flipped {
 
     /// the name of the conversation shown, at the top
     let title = titleLabel()
+    /// a small window (no side buttons): the mode's name at the top, as ReNote's space's
+    let modeName = label("", Fonts.buttons(12))
+    /// a small window: a search over the history, on top of it
+    let search = Field(size: 18, align: .left)
+    /// TERM, HOMO, CHAT
+    var modeWord: String { "" }
+    /// the history the search looks through
+    var historyList: HistoryList? { nil }
+    /// whether there is a history to search now (HOMO: signed in)
+    var searchable: Bool { true }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        search.placeholder = "Search"
+        search.onChange = { [weak self] in self?.historyList?.query = self?.search.stringValue ?? "" }
+        addSubview(modeName)
+        addSubview(search)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    /// the history's place: on the left; in a small window under the search
+    var historyFrame: NSRect {
+        small ? NSRect(x: area.minX, y: area.minY + 48, width: max(0, list - 12), height: max(0, area.height - 48))
+              : NSRect(x: area.minX, y: area.minY, width: max(0, list - 40), height: area.height)
+    }
+
+    /// where the conversation goes: right of the history; in a small window under its name
+    var column: NSRect {
+        let top: CGFloat = small ? 40 : 0
+        return NSRect(x: area.minX + list, y: area.minY + top, width: max(0, area.width - list), height: max(0, area.height - top))
+    }
 
     func layoutTitle() {
         let W = bounds.width
-        let maxW = small ? W - 200 : W * 0.5
-        title.frame = NSRect(x: (W - maxW) / 2, y: small ? 6 : 28, width: maxW, height: 32)
+        modeName.attributedStringValue = attributed(t(modeWord), Fonts.buttons(12), NSColor(white: 1, alpha: 0.48), kern: 3.6, align: .center)
+        modeName.isHidden = !small
+        search.isHidden = !small || !searchable
+        if search.isHidden && !search.stringValue.isEmpty {
+            search.stringValue = ""
+            historyList?.query = ""
+        }
+        historyList?.large = small
+        if small {
+            modeName.frame = NSRect(x: 0, y: 16, width: W, height: 18)
+            search.frame = NSRect(x: area.minX + 8, y: area.minY, width: max(0, list - 12 - 8), height: 32)
+            title.frame = NSRect(x: area.minX + list, y: area.minY, width: max(0, area.width - list), height: 28)
+        } else {
+            let maxW = W * 0.5
+            title.frame = NSRect(x: (W - maxW) / 2, y: 28, width: maxW, height: 32)
+        }
     }
 }
 
@@ -127,9 +173,11 @@ final class MainView: Flipped {
         super.layout()
         let W = bounds.width, H = bounds.height
         let small = W < 760 || H < 560
-        let list: CGFloat = small ? 0 : min(300, max(190, W * 0.24))
+        let list: CGFloat = full ? 0 : small ? W * 0.34 + 12 : min(300, max(190, W * 0.24))
         let area: NSRect
-        if full || small {
+        if small && !full {
+            area = NSRect(x: 36, y: 48, width: max(0, W - 36 - 24), height: max(0, H - 48 - 44))
+        } else if full || small {
             area = NSRect(x: 34, y: 36, width: max(0, W - 34 - 30), height: max(0, H - 36 - 22))
         } else {
             let side = max(W * 0.0625 + 80, W * 0.5 - 380 - list / 2)

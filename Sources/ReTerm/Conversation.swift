@@ -21,9 +21,13 @@ final class HistoryList: Flipped {
     var fresh: (() -> Void)?
     var freshShown = false { didSet { doc.needsDisplay = true } }
     var pick: ((String) -> Void)?
+    /// only the ones whose name has this (the search)
+    var query = "" { didSet { relayout() } }
+    /// a small window: the rows as ReNote's notes (16, further apart)
+    var large = false { didSet { if large != oldValue { relayout() } } }
 
-    private let rowH: CGFloat = 31
-    private let gap: CGFloat = 4
+    private var rowH: CGFloat { large ? 36 : 31 }
+    private var gap: CGFloat { large ? 0 : 4 }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -39,8 +43,9 @@ final class HistoryList: Flipped {
 
     private var rows: [(id: String?, title: String, badge: String?, on: Bool)] {
         var all: [(String?, String, String?, Bool)] = []
-        if fresh != nil { all.append((nil, t("NOVA"), nil, freshShown)) }
-        for i in items { all.append((i.id, i.title, i.badge, i.id == shown)) }
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        if fresh != nil && q.isEmpty { all.append((nil, t("NOVA"), nil, freshShown)) }
+        for i in items where q.isEmpty || i.title.lowercased().contains(q) { all.append((i.id, i.title, i.badge, i.id == shown)) }
         return all
     }
 
@@ -56,9 +61,9 @@ final class HistoryList: Flipped {
         doc.needsDisplay = true
         doc.toolTip = nil
         doc.removeAllToolTips()
-        for (i, item) in items.enumerated() {
-            let r = rect(i + (fresh != nil ? 1 : 0))
-            doc.addToolTip(r, owner: (item.hint ?? item.title) as NSString, userData: nil)
+        for (i, row) in rows.enumerated() {
+            guard let id = row.id, let item = items.first(where: { $0.id == id }) else { continue }
+            doc.addToolTip(rect(i), owner: (item.hint ?? item.title) as NSString, userData: nil)
         }
         scroll.update()
     }
@@ -81,7 +86,7 @@ final class HistoryList: Flipped {
         for (i, row) in rows.enumerated() {
             let r = rect(i)
             var attrs: [NSAttributedString.Key: Any] = [
-                .font: Fonts.words(14),
+                .font: Fonts.words(large ? 16 : 14),
                 .foregroundColor: NSColor(white: 1, alpha: 0.8 * (row.on ? 1 : 0.75)),
             ]
             if row.on {
@@ -100,7 +105,7 @@ final class HistoryList: Flipped {
                 badgeW = 0
             }
             NSAttributedString(string: row.title, attributes: attrs)
-                .draw(with: NSRect(x: 6.3, y: r.minY + 5, width: r.width - 12.6 - badgeW, height: 21), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+                .draw(with: NSRect(x: large ? 8 : 6.3, y: r.minY + (large ? 7 : 5), width: r.width - 12.6 - badgeW, height: large ? 23 : 21), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
         }
     }
 

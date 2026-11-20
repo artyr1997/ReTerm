@@ -70,6 +70,8 @@ private final class Answer {
 
 final class ChatPage: ModePage {
     private let history = HistoryList()
+    override var modeWord: String { "CHAT" }
+    override var historyList: HistoryList? { history }
     private let talkScroll: FadeScroll
     private let talk: Transcript
     private let box = InputBox()
@@ -526,10 +528,9 @@ final class ChatPage: ModePage {
     override func layout() {
         super.layout()
         layoutTitle()
-        let A = area, L = list
-        history.isHidden = L == 0
-        history.frame = NSRect(x: A.minX, y: A.minY, width: max(0, L - 40), height: A.height)
-        let column = NSRect(x: A.minX + L, y: A.minY, width: max(0, A.width - L), height: A.height)
+        history.isHidden = list == 0
+        history.frame = historyFrame
+        let column = self.column
         box.maxHeight = bounds.height * 0.4
         let boxH = box.height
         box.frame = NSRect(x: column.minX, y: column.maxY - boxH, width: column.width, height: boxH)
