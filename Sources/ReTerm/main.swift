@@ -7,6 +7,10 @@ func tick(_ what: String) { if ProcessInfo.processInfo.environment["RETERM_TIMIN
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // keys of one's own, as set in ReDesk's keys popup (⌘/)
+        OwnKeys.start(app: "ReTerm", standard: [
+            "newWindow": .init(45, "n"), "wholeWindow": .init(3, "f", [.command, .shift]), "newConversation": .init(40, "k"),
+        ])
         tick("did finish launching")
         NSApp.appearance = NSAppearance(named: .darkAqua)
         NSApp.mainMenu = menu()
