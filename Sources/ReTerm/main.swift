@@ -7,6 +7,8 @@ func tick(_ what: String) { if ProcessInfo.processInfo.environment["RETERM_TIMIN
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // the distances from the windows' edges, as set with ReDesk's keys
+        Spacing.start()
         // keys of one's own, as set in ReDesk's keys popup (⌘/)
         OwnKeys.start(app: "ReTerm", standard: [
             "newWindow": .init(45, "n"), "wholeWindow": .init(3, "f", [.command, .shift]), "newConversation": .init(40, "k"),
