@@ -178,8 +178,9 @@ final class MainView: Flipped {
         } else if full || small {
             area = NSRect(x: 34, y: 36, width: max(0, W - 34 - 30), height: max(0, H - 36 - 22))
         } else {
-            let side = max(W * Spacing.x + 80, W * 0.5 - 380 - list / 2)
-            let top = H * Spacing.y + 24
+            // as far from the buttons' columns as they are from the edges (narrower still if the window is wide)
+            let side = max(Spacing.inner(W), W * 0.5 - 380 - list / 2)
+            let top = Spacing.innerTop(H)
             area = NSRect(x: side, y: top, width: max(0, W - side * 2), height: max(0, H - top * 2))
         }
         for p in [term, chat] {
@@ -194,9 +195,7 @@ final class MainView: Flipped {
             let h = CGFloat(b.shown.count) * SideButton.advance + SideButton.size * 0.55
             b.top = true
             let left = c == .topLeft || c == .bottomLeft
-            let x = left ? W * Spacing.x - 28 : W - (W * Spacing.x - 28) - SideButton.width
-            let y = c == .topLeft || c == .topRight ? H * Spacing.y + 8 : H - H * Spacing.y - h
-            b.frame = NSRect(x: x, y: y, width: SideButton.width, height: h)
+            b.frame = Spacing.button(width: SideButton.width, height: h, left: left, top: c == .topLeft || c == .topRight, W, H)
             b.isHidden = small || full
         }
         strip.frame = NSRect(x: 0, y: 0, width: W, height: 28)
