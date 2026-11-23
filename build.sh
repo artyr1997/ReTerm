@@ -2,11 +2,13 @@
 # Builds ReTerm.app into build/ and, with --install, puts it next to the other Re apps.
 set -e
 cd "$(dirname "$0")"
-swift build -c release
+# for every Mac from macOS 13 on, Apple silicon and Intel both
+swift build -c release --arch arm64
+swift build -c release --arch x86_64
 APP=build/ReTerm.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/ReTerm "$APP/Contents/MacOS/ReTerm"
+lipo -create -output "$APP/Contents/MacOS/ReTerm" .build/arm64-apple-macosx/release/ReTerm .build/x86_64-apple-macosx/release/ReTerm
 cp Info.plist "$APP/Contents/"
 cp -R Resources/* "$APP/Contents/Resources/"
 # ad-hoc, known by its identifier rather than by this build's hash
