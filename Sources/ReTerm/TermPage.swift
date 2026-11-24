@@ -5,7 +5,8 @@ import SwiftTerm
 // it, written in its colours; the line to type is at the bottom (↑ ↓ the commands before, Tab completes).
 // The shell is the user's zsh in a pseudo-terminal, its marks (Resources/zsh) saying where each command
 // starts and ends. A program that takes the whole screen (vim, htop, less…) has the whole column while it
-// runs. Another shell than zsh: a plain terminal. When the shell ends, the window closes.
+// runs; so does one that reads each key as it is pressed (python, node, ssh…: the terminal out of its line
+// mode), which then has the keys too, what it wrote so far with it, its answer kept as text when it ends. Another shell than zsh: a plain terminal. When the shell ends, the window closes.
 // Each session is kept (its commands and their answers as text): ⌘K starts a new one, the ones before are on
 // the left, each to go on with (the shell goes to where it was); ⇧↑ / ⇧↓ the one above / below.
 
@@ -21,6 +22,8 @@ private final class Block {
     var status: Int?
     /// it took the whole window (vim…)
     var fullscreen = false
+    /// what the answer wrote, as it came (its last part): shown again when the program takes the window
+    var raw = ""
 
     init(id: Int, command: String?) {
         self.id = id
@@ -75,6 +78,11 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
     private var mode = Mode.starting
     private var running = false
     private var full = false
+    /// the whole column taken by a program reading key by key (python…), not by one of its own screen
+    private var interactive = false
+    /// while a command runs: whether its program reads key by key
+    private var keysWatch: Timer?
+    private var rawSeen = 0
     private var blocks: [Block] = []
     private var nextId = 1
     private var sink = Sink()
@@ -323,12 +331,18 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
             let on = m.map { ns.substring(with: $0.range(at: 1)) == "h" } ?? false
             let cut = m.map { $0.range.location + (on ? 0 : $0.range.length) } ?? ns.length
             let before = ns.substring(to: cut)
-            if full { screen.feed(text: before) } else if let live = blocks.last?.live {
+            if full { screen.feed(text: before) }
+            if !full || interactive, let block = blocks.last, let live = block.live {
                 live.feed(text: before)
-                scheduleRender()
+                block.raw += before
+                if block.raw.utf8.count > 400_000 { block.raw = String(block.raw.suffix(300_000)) }
+                if !full { scheduleRender() }
             }
             guard let m else { break }
-            if on {
+            if interactive {
+                // a screen of its own inside it (python's help…): the terminal takes it as it is
+                screen.feed(text: ns.substring(with: m.range))
+            } else if on {
                 enterFull()
                 screen.feed(text: ns.substring(with: m.range))
             } else {
@@ -391,9 +405,45 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
         running = true
         showWhere()
         render()
+        watchKeys()
+    }
+
+    /// While a command runs, whether its program has the terminal out of its line mode (ICANON off: it reads
+    /// each key as pressed, as python's, node's or ssh's prompt does): seen twice running, it has the column
+    private func watchKeys() {
+        keysWatch?.invalidate()
+        rawSeen = 0
+        let timer = Timer(timeInterval: 0.12, repeats: true) { [weak self] _ in
+            guard let self, self.running, let p = self.process else { return }
+            guard !self.full else { self.rawSeen = 0; return }
+            var t = termios()
+            if tcgetattr(p.childfd, &t) == 0 && t.c_lflag & tcflag_t(ICANON) == 0 {
+                self.rawSeen += 1
+                if self.rawSeen >= 2 { self.enterInteractive() }
+            } else {
+                self.rawSeen = 0
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        keysWatch = timer
+    }
+
+    /// the program reading key by key gets the column and the keys, with what it wrote so far
+    private func enterInteractive() {
+        guard running, !full, let block = blocks.last, block.live != nil else { return }
+        redraw?.cancel()
+        redraw = nil
+        full = true
+        interactive = true
+        screen.getTerminal().resetToInitialState()
+        screen.feed(text: block.raw)
+        needsLayout = true
+        window?.makeFirstResponder(screen)
     }
 
     private func finishBlock(_ status: Int) {
+        keysWatch?.invalidate()
+        keysWatch = nil
         if full { leaveFull() }
         running = false
         showWhere()
@@ -434,6 +484,7 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
 
     private func leaveFull() {
         full = false
+        interactive = false
         needsLayout = true
         if active { box.focus() }
     }
