@@ -1,0 +1,31 @@
+# ReTerm's bash: the user's own files read as a login shell reads them, then the marks around each command
+
+[ -f /etc/profile ] && . /etc/profile
+if [ -f ~/.bash_profile ]; then . ~/.bash_profile
+elif [ -f ~/.bash_login ]; then . ~/.bash_login
+elif [ -f ~/.profile ]; then . ~/.profile
+fi
+# a .bashrc not read by the files above: read here (an interactive shell's own)
+if [ -f ~/.bashrc ] && ! grep -qs bashrc ~/.bash_profile ~/.bash_login ~/.profile 2>/dev/null; then . ~/.bashrc; fi
+
+# the marks (OSC 133, as zsh's): D the last command done (its status), 7 where the shell is, 6973 its PATH
+# (for Tab), A ready for the next; C a command starts. bash 3.2 has no preexec: a DEBUG trap stands for it,
+# armed at the prompt, so only the first command of a line marks C (and nothing the prompt itself runs)
+__reterm_armed=0
+__reterm_inprompt=1
+__reterm_status=0
+__reterm_debug() {
+    [ "$__reterm_inprompt" = 1 ] && return
+    case "$BASH_COMMAND" in __reterm_status=*) return ;; esac
+    if [ "$__reterm_armed" = 1 ]; then
+        __reterm_armed=0
+        builtin printf '\033]133;C\007'
+    fi
+}
+__reterm_precmd() {
+    builtin printf '\033]133;D;%s\007\033]7;file://%s%s\007\033]6973;%s\007\033]133;A\007' "$__reterm_status" "$HOSTNAME" "$PWD" "$PATH"
+    __reterm_inprompt=0
+    __reterm_armed=1
+}
+trap '__reterm_debug' DEBUG
+PROMPT_COMMAND="__reterm_status=\$? __reterm_inprompt=1${PROMPT_COMMAND:+; $PROMPT_COMMAND}; __reterm_precmd"

@@ -3,8 +3,8 @@ import SwiftTerm
 
 // TERM: the terminal as a conversation. Each command is a message (on the right), the shell's answer under
 // it, written in its colours; the line to type is at the bottom (↑ ↓ the commands before, Tab completes).
-// The shell is the user's zsh in a pseudo-terminal, its marks (Resources/zsh) saying where each command
-// starts and ends. A program that takes the whole screen (vim, htop, less…) has the whole column while it
+// The shell is zsh, bash or fish (chosen on the left column, its name at the window's foot) in a
+// pseudo-terminal, its marks (Resources/zsh, bash, fish) saying where each command starts and ends. A program that takes the whole screen (vim, htop, less…) has the whole column while it
 // runs; so does one that reads each key as it is pressed (python, node, ssh…: the terminal out of its line
 // mode), which then has the keys too, what it wrote so far with it, its answer kept as text when it ends. Another shell than zsh: a plain terminal. When the shell ends, the window closes.
 // Each session is kept (its commands and their answers as text): ⌘K starts a new one, the ones before are on
@@ -103,6 +103,61 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
     private static let sizes = (min: CGFloat(9), max: CGFloat(28), plain: CGFloat(14))
     private var fontSize: CGFloat = 14
 
+    // the shells to choose from: the first of each one's places found is the one run
+    private static let shells: [(id: String, name: String, paths: [String], hint: String)] = [
+        ("zsh", "ZSH", ["/bin/zsh", "/opt/homebrew/bin/zsh", "/usr/local/bin/zsh"], ""),
+        ("bash", "BASH", ["/opt/homebrew/bin/bash", "/usr/local/bin/bash", "/bin/bash"], "brew install bash"),
+        ("fish", "FISH", ["/opt/homebrew/bin/fish", "/usr/local/bin/fish", "/usr/bin/fish"], "brew install fish"),
+    ]
+    private static func path(of shell: String) -> String? {
+        shells.first { $0.id == shell }?.paths.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+    /// how many shells this window started
+    private var launches = 0
+    /// the shell chosen (kept); at first the user's own, if it is one of them
+    private var shellId: String = {
+        if let kept = Saved.get("shell")?.trimmingCharacters(in: .whitespacesAndNewlines), shells.contains(where: { $0.id == kept }) { return kept }
+        let own = ((ProcessInfo.processInfo.environment["SHELL"] ?? "") as NSString).lastPathComponent
+        return shells.contains { $0.id == own } ? own : "zsh"
+    }()
+
+    private func refreshChoices() {
+        setChoices(Self.shells.map { Choice(id: $0.id, name: $0.name, ready: Self.path(of: $0.id) != nil, hint: $0.hint) }, chosen: shellId)
+    }
+
+    /// a shell chosen on the left: this one ends (its session kept on the left), the new one begins a session
+    private func useShell(_ id: String) {
+        guard let c = choices.items.first(where: { $0.id == id }) else { return }
+        guard c.ready else { return sayNotInstalled(c) }
+        guard id != shellId else { return box.focus() }
+        shellId = id
+        Saved.set("shell", id)
+        refreshChoices()
+        keysWatch?.invalidate()
+        keysWatch = nil
+        if full { leaveFull() }
+        keepSession()
+        let old = process
+        process = nil
+        if let old, old.running { kill(old.shellPid, SIGHUP) }
+        blocks = []
+        sessionId = Date().timeIntervalSince1970 * 1000
+        started = sessionId
+        past = stored()
+        mode = .starting
+        ready = false
+        running = false
+        startup = ""
+        pending = ""
+        held = []
+        screen.getTerminal().resetToInitialState()
+        launch()
+        render(stick: true)
+        refreshHistory()
+        needsLayout = true
+        box.focus()
+    }
+
     // the sessions: this one, live, and the ones before
     private var sessionId = Date().timeIntervalSince1970 * 1000
     private var started = Date().timeIntervalSince1970 * 1000
@@ -126,6 +181,7 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
         }
         addSubview(title)
         history.pick = { [weak self] id in self?.pick(id) }
+        choices.pick = { [weak self] id in self?.useShell(id) }
         history.remove = { [weak self] id in self?.deleteSession(id) }
         addSubview(history)
         talk.onWidth = { [weak self] _ in self?.render() }
@@ -160,28 +216,61 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
     override func start() {
         layoutSubtreeIfNeeded()
         tick("  term: laid out")
-        commands = zshHistory()
-        tick("  term: zsh history read")
-        let shell = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/zsh"
+        refreshChoices()
+        launch()
+    }
+
+    /// the shell chosen, started in a pseudo-terminal with ReTerm's marks
+    private func launch() {
+        if Self.path(of: shellId) == nil { shellId = "zsh" }
+        commands = shellId == "bash" ? bashHistory() : shellId == "fish" ? fishHistory() : zshHistory()
+        tick("  term: history read")
+        let shell = Self.path(of: shellId) ?? "/bin/zsh"
         var env = ProcessInfo.processInfo.environment
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
         env["TERM_PROGRAM"] = "ReTerm"
         // opened from the Dock an app has no LANG: without it the shell can't write anything but ASCII
         if (env["LANG"] ?? "").isEmpty { env["LANG"] = "en_US.UTF-8" }
+        env["SHELL"] = shell
         var marked = false
-        if (shell as NSString).lastPathComponent == "zsh", let dir = zshFiles() {
+        var args = ["-l"]
+        if shellId == "zsh", let dir = zshFiles() {
             env["RETERM_USER_ZDOTDIR"] = Self.userFiles ?? env["ZDOTDIR"].flatMap { $0.isEmpty ? nil : $0 } ?? home
             env["ZDOTDIR"] = dir
+            marked = true
+        } else if shellId == "bash", let rc = shellFile("bash", "bashrc") {
+            // its own rc file reads the login files, then the marks
+            args = ["--rcfile", rc, "-i"]
+            env["BASH_SILENCE_DEPRECATION_WARNING"] = "1"
+            marked = true
+        } else if shellId == "fish", let file = shellFile("fish", "reterm.fish") {
+            args = ["-l", "-i", "-C", "source '\(file)'"]
             marked = true
         }
         let p = LocalProcess(delegate: self, dispatchQueue: .main)
         process = p
-        p.startProcess(executable: shell, args: ["-l"], environment: env.map { "\($0)=\($1)" }, currentDirectory: home)
+        p.startProcess(executable: shell, args: args, environment: env.map { "\($0)=\($1)" }, currentDirectory: cwd)
         sink.send = { [weak self] b in self?.send(b) }
+        launches += 1
+        let launch = launches
         if !marked { plainTerminal() } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in self?.plainTerminal() }
+            // (a shell given up waiting for: only this one's wait counts, not one ended since)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+                if self?.launches == launch { self?.plainTerminal() }
+            }
         }
+    }
+
+    /// ReTerm's file for bash or fish (Resources/<shell>/<name>), where the shell can read it
+    private func shellFile(_ shell: String, _ name: String) -> String? {
+        guard let src = Bundle.main.url(forResource: name, withExtension: nil, subdirectory: shell),
+              let text = try? String(contentsOf: src, encoding: .utf8) else { return nil }
+        let dir = Saved.dir.appendingPathComponent(shell)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent(name)
+        try? text.write(to: file, atomically: true, encoding: .utf8)
+        return file.path
     }
 
     /// ReTerm's zsh files: the user's own are read through them, and the marks around each command added
@@ -218,9 +307,9 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
     private func send(_ text: String) { send(Array(text.utf8)) }
 
     func processTerminated(_ source: LocalProcess, exitCode: Int32?) {
-        // the shell ended: the window closes
+        // the shell ended: the window closes (not a shell ended for another one chosen)
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.process != nil else { return }
+            guard let self, let p = self.process, p === source else { return }
             self.process = nil
             self.window?.close()
         }
@@ -321,9 +410,10 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
         if mode == .plain { return screen.feed(text: text) }
         if mode == .starting {
             startup += text
+            answerQueries(text)
             return
         }
-        guard running else { return }
+        guard running else { return answerQueries(text) }
         var rest = text
         while !rest.isEmpty {
             let ns = rest as NSString
@@ -350,6 +440,13 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
             }
             rest = ns.substring(from: m.range.location + m.range.length)
         }
+    }
+
+    /// The terminal's answers to what a shell asks of it while nothing shows it (fish asks at its start, and
+    /// waits): what it is (DA1), where the cursor is
+    private func answerQueries(_ text: String) {
+        if text.contains("\u{1b}[c") || text.contains("\u{1b}[0c") { send("\u{1b}[?62;22c") }
+        if text.contains("\u{1b}[6n") { send("\u{1b}[1;1R") }
     }
 
     /// what the shell wrote: its marks taken out (never cut in two), the rest routed
@@ -397,6 +494,8 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
     }
 
     private func startBlock() {
+        // a shell marking a start twice (fish's own marks and ReTerm's): one answer
+        if running { return }
         if blocks.last == nil || blocks.last!.status != nil || blocks.last!.live != nil || !blocks.last!.html.isEmpty {
             blocks.append(Block(id: nextId, command: nil))
             nextId += 1
@@ -682,7 +781,8 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
         box.string = ""
         hints([])
         // more than a line: pasted whole, run as one
-        send(text.contains("\n") ? "\u{1b}[200~\(text)\u{1b}[201~\r" : text + "\r")
+        // bash (3.2, macOS's) knows no bracketed paste: its lines one after another
+        send(text.contains("\n") && shellId != "bash" ? "\u{1b}[200~\(text)\u{1b}[201~\r" : text + "\r")
         render(stick: true)
     }
 

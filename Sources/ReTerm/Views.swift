@@ -390,3 +390,68 @@ func veil() -> NSVisualEffectView {
     v.appearance = NSAppearance(named: .darkAqua)
     return v
 }
+
+/// One choice of a mode's (TERM's shell, CHAT's program), as a dash on the left column.
+struct Choice {
+    let id: String
+    /// as written at the window's foot: ZSH, CLAUDE…
+    let name: String
+    /// installed: if not, a faint dash, and how to install it said at the foot
+    let ready: Bool
+    let hint: String
+}
+
+/// The choices down the left column as ReSurf's tabs (and ReDesk's wallpapers): a dash each, the chosen one
+/// long and strong, the others short and faint; the pointer over one names it at the foot.
+final class ChoiceDashes: Flipped {
+    var items: [Choice] = [] { didSet { needsDisplay = true } }
+    var chosen = "" { didSet { needsDisplay = true } }
+    var pick: ((String) -> Void)?
+    /// the one under the pointer (nil: none), for the foot
+    var onHover: ((Choice?) -> Void)?
+    private(set) var hover: Int? {
+        didSet {
+            guard hover != oldValue else { return }
+            needsDisplay = true
+            onHover?(hover.map { items[$0] })
+        }
+    }
+    private static let step: CGFloat = 16
+
+    private var top: CGFloat { max(0, (bounds.height - CGFloat(items.count) * Self.step) / 2) }
+
+    private func index(_ p: NSPoint) -> Int? {
+        let i = Int(floor((p.y - top) / Self.step))
+        return i >= 0 && i < items.count && abs(p.x - bounds.midX) < 22 ? i : nil
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        for (i, item) in items.enumerated() {
+            let y = top + CGFloat(i) * Self.step + Self.step / 2
+            let on = item.id == chosen
+            let w: CGFloat = on ? 20 : hover == i ? 14 : 10
+            var alpha: CGFloat = on ? 0.5 : hover == i ? 0.4 : 0.25
+            if !item.ready { alpha *= 0.5 }
+            NSColor(white: 1, alpha: alpha).setFill()
+            NSBezierPath(roundedRect: NSRect(x: bounds.midX - w / 2, y: y - 1, width: w, height: 2), xRadius: 1, yRadius: 1).fill()
+        }
+    }
+
+    override func updateTrackingAreas() {
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseMoved(with event: NSEvent) { hover = index(convert(event.locationInWindow, from: nil)) }
+    override func mouseExited(with event: NSEvent) { hover = nil }
+    override func resetCursorRects() {
+        for i in items.indices {
+            addCursorRect(NSRect(x: bounds.midX - 22, y: top + CGFloat(i) * Self.step, width: 44, height: Self.step), cursor: .pointingHand)
+        }
+    }
+    override func mouseDown(with event: NSEvent) {}
+    override func mouseUp(with event: NSEvent) {
+        guard let i = index(convert(event.locationInWindow, from: nil)) else { return }
+        pick?(items[i].id)
+    }
+}

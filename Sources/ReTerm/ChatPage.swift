@@ -1,8 +1,10 @@
 import AppKit
 
 // CHAT: a conversation with an LLM, as TERM's with the shell: what is said on the right, the answer under it
-// as it comes. Through the programs installed and signed in (claude: Claude Code; codex: ChatGPT's): each
-// message runs the program once, the conversation going on by its session until ⌘K starts a new one. They run
+// as it comes. Through the programs installed and signed in (claude: Claude Code; codex: ChatGPT's; gemini:
+// Gemini CLI; DeepSeek through Ollama), chosen on the left column, its name at the window's foot: each
+// message runs the program once, the conversation going on by its session (claude, codex) or by the
+// conversation so far given with it (gemini, DeepSeek) until ⌘K starts a new one. They run
 // in their own folder, with no tools: a conversation only. The ones before on the left, each to go on with;
 // ⇧↑ / ⇧↓ the one above / below; ⇧⌘⌫ (or a right click on it on the left) deletes one. Kept between launches.
 
@@ -76,11 +78,24 @@ final class ChatPage: ModePage {
     private let talkScroll: FadeScroll
     private let talk: Transcript
     private let box = InputBox()
-    private let who = Flipped()
 
     override var input: InputBox? { box }
 
-    private static let names = ["claude": "CLAUDE", "codex": "CODEX"]
+    /// the programs to talk through: the id kept, the name at the foot, the command looked for, how to install it
+    private static let programs: [(id: String, name: String, command: String, hint: String)] = [
+        ("claude", "CLAUDE", "claude", "npm i -g @anthropic-ai/claude-code"),
+        ("codex", "CHATGPT", "codex", "npm i -g @openai/codex"),
+        ("gemini", "GEMINI", "gemini", "npm i -g @google/gemini-cli"),
+        ("deepseek", "DEEPSEEK", "ollama", "brew install ollama"),
+    ]
+    /// DeepSeek's model, run by Ollama (fetched by it the first time)
+    private static let deepseekModel = "deepseek-r1"
+
+    override var footStatus: String { answering != nil ? "  ⋯" : "" }
+
+    private func refreshChoices() {
+        setChoices(Self.programs.map { Choice(id: $0.id, name: $0.name, ready: available.contains($0.id), hint: $0.hint) }, chosen: provider)
+    }
     private var conversations: [Conversation] = []
     private var shownId: Double = 0
     private var shownConversation: Conversation? { conversations.first { $0.id == shownId } }
@@ -97,6 +112,8 @@ final class ChatPage: ModePage {
     private var answering: Int?
     private var streamed = false
     private var answers: [Int: Answer] = [:]
+    /// answers (by id) inside an older Ollama's <think>…</think>
+    private var thinking = Set<Int>()
 
     override init(frame: NSRect) {
         (talkScroll, talk) = Transcript.make()
@@ -104,10 +121,10 @@ final class ChatPage: ModePage {
         addSubview(title)
         history.pick = { [weak self] id in self?.show(Double(id) ?? 0) }
         history.remove = { [weak self] id in self?.delete(Double(id) ?? 0) }
+        choices.pick = { [weak self] id in self?.choose(id) }
         addSubview(history)
         talk.onWidth = { [weak self] _ in self?.render() }
         addSubview(talkScroll)
-        addSubview(who)
         box.size = 14
         box.onKey = { [weak self] e in self?.typed(e) ?? false }
         box.onHeight = { [weak self] in self?.needsLayout = true }
@@ -118,11 +135,12 @@ final class ChatPage: ModePage {
 
     override func start() {
         load()
+        refreshChoices()
         // the ones installed, found as the user's shell finds them
         DispatchQueue.global().async { [weak self] in
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            p.arguments = ["-lc", "for c in claude codex; do command -v $c >/dev/null 2>&1 && echo $c; done"]
+            p.arguments = ["-lc", "for c in claude codex gemini ollama; do command -v $c >/dev/null 2>&1 && echo $c; done"]
             let out = Pipe()
             p.standardOutput = out
             p.standardInput = FileHandle.nullDevice
@@ -130,12 +148,13 @@ final class ChatPage: ModePage {
             try? p.run()
             p.waitUntilExit()
             let found = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { $0 == "claude" || $0 == "codex" }
+                .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            let ids = Self.programs.filter { found.contains($0.command) }.map(\.id)
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.available = found
-                if let first = found.first, !found.contains(self.provider) { self.provider = first }
-                self.drawWho()
+                self.available = ids
+                if let first = ids.first, !ids.contains(self.provider) { self.provider = first }
+                self.refreshChoices()
             }
         }
     }
@@ -264,38 +283,14 @@ final class ChatPage: ModePage {
         refreshHistory()
     }
 
-    // ── who answers: CLAUDE, CODEX (the one chosen underlined); Tab the other ──
-
-    private func drawWho() {
-        who.subviews.forEach { $0.removeFromSuperview() }
-        var x: CGFloat = 0
-        if available.isEmpty {
-            let l = label("claude / codex: not installed", Fonts.words(11.2), NSColor(white: 1, alpha: 0.4))
-            l.sizeToFit()
-            l.frame.origin = NSPoint(x: 0, y: 2)
-            who.addSubview(l)
-            x = l.frame.maxX
-        }
-        for name in available {
-            let word = Self.names[name] ?? name.uppercased()
-            let b = WhoButton(word, chosen: name == provider) { [weak self] in self?.choose(name) }
-            let w = b.intrinsicContentSize.width
-            b.frame = NSRect(x: x, y: 0, width: w, height: 20)
-            who.addSubview(b)
-            x += w + 18
-        }
-        if answering != nil {
-            let busy = label("⋯", Fonts.words(11.2), NSColor(white: 1, alpha: 0.4))
-            busy.sizeToFit()
-            busy.frame.origin = NSPoint(x: x, y: 2)
-            who.addSubview(busy)
-        }
-    }
+    // ── who answers: chosen on the left column (Tab the next installed one), named at the foot ──
 
     private func choose(_ name: String) {
+        guard let c = choices.items.first(where: { $0.id == name }) else { return }
+        guard c.ready else { return sayNotInstalled(c) }
         provider = name
         keep()
-        drawWho()
+        refreshChoices()
         box.focus()
     }
 
@@ -317,18 +312,37 @@ final class ChatPage: ModePage {
         answering = reply.id
         streamed = false
         render(stick: true)
-        drawWho()
+        refreshChoices()
         keep()
-        run(reply.id, provider: provider, prompt: text, session: conversation.sessions[provider])
+        // gemini and DeepSeek keep no session here: the conversation so far goes with the message
+        let prompt = provider == "gemini" || provider == "deepseek" ? withHistory(conversation, text) : text
+        run(reply.id, provider: provider, prompt: prompt, session: conversation.sessions[provider])
+    }
+
+    /// the conversation before this message, written out ahead of it
+    private func withHistory(_ c: Conversation, _ text: String) -> String {
+        let before = c.messages.dropLast(2).filter { !$0.text.isEmpty }
+        guard !before.isEmpty else { return text }
+        let said = before.map { ($0.me ? "User: " : "Assistant: ") + $0.text }.joined(separator: "\n\n")
+        return "The conversation so far:\n\n" + said + "\n\nUser: " + text
     }
 
     /// one message to `provider`, going on with `session` if there is one
     private func run(_ id: Int, provider: String, prompt: String, session: String?) {
         var args: [String]
-        if provider == "claude" {
+        var command = provider
+        switch provider {
+        case "claude":
             args = ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--tools", "", "--strict-mcp-config"]
             if let session, !session.isEmpty { args += ["--resume", session] }
-        } else {
+        case "gemini":
+            // the message on its input, its answer as JSON events as it comes
+            args = ["--output-format", "stream-json"]
+        case "deepseek":
+            // Ollama's model, its thinking left out: plain text as it comes
+            command = "ollama"
+            args = ["run", Self.deepseekModel, "--hidethinking"]
+        default:
             args = ["exec"]
             if let session, !session.isEmpty { args += ["resume", session] }
             args += ["--skip-git-repo-check", "--json", "-"]
@@ -339,7 +353,7 @@ final class ChatPage: ModePage {
         let p = a.process
         // through the login shell: the PATH (nvm, Homebrew…) as in the terminal
         p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        p.arguments = ["-lc", "exec \"$@\"", "reterm", provider] + args
+        p.arguments = ["-lc", "exec \"$@\"", "reterm", command] + args
         p.currentDirectoryURL = dir
         var env = ProcessInfo.processInfo.environment
         // started from a Claude Code session, its own mark would stop claude here
@@ -398,9 +412,19 @@ final class ChatPage: ModePage {
     private func line(_ id: Int, _ text: String) {
         guard let (message, conversation) = byId(id) else { return }
         changed.insert(conversation.id)
+        if message.provider == "deepseek" {
+            // plain text; an older Ollama's thinking (between <think> and </think>) left out
+            if text.contains("<think>") { thinking.insert(id) }
+            if thinking.contains(id) {
+                if text.contains("</think>") { thinking.remove(id) }
+                return
+            }
+            if !(message.text.isEmpty && text.trimmingCharacters(in: .whitespaces).isEmpty) { message.text += text + "\n" }
+            return renderIfShown(conversation)
+        }
         guard let event = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] else {
             // not its JSON (a program that writes plain text)
-            if message.provider != "claude" { message.text += text + "\n" }
+            if message.provider == "codex" { message.text += text + "\n" }
             return renderIfShown(conversation)
         }
         if message.provider == "claude" {
@@ -418,6 +442,17 @@ final class ChatPage: ModePage {
                 message.text += content.filter { $0["type"] as? String == "text" }.compactMap { $0["text"] as? String }.joined()
             } else if type == "result", event["is_error"] as? Bool == true {
                 message.error = "\(event["result"] ?? "Error")"
+            }
+        } else if message.provider == "gemini" {
+            // gemini --output-format stream-json: the answer's pieces as "message" events, an error as "error"
+            // or a "result" that failed
+            let type = event["type"] as? String
+            if type == "message", event["role"] as? String == "assistant" {
+                message.text += event["content"] as? String ?? ""
+            } else if type == "error" {
+                message.error = (event["message"] as? String) ?? "Error"
+            } else if type == "result", event["status"] as? String == "error" {
+                message.error = ((event["error"] as? [String: Any])?["message"] as? String) ?? "Error"
             }
         } else {
             // codex exec --json: the thread, and each message as it is done
@@ -447,7 +482,7 @@ final class ChatPage: ModePage {
         if answering == id { answering = nil }
         keep()
         render()
-        drawWho()
+        refreshChoices()
     }
 
     private func stop() {
@@ -500,7 +535,7 @@ final class ChatPage: ModePage {
                 refreshHistory()
             }
         }
-        drawWho()
+        refreshChoices()
     }
 
     /// ⇧↑ / ⇧↓: the conversation above / below on the left
@@ -569,53 +604,7 @@ final class ChatPage: ModePage {
         box.maxHeight = bounds.height * 0.4
         let boxH = box.height
         box.frame = NSRect(x: column.minX, y: column.maxY - boxH, width: column.width, height: boxH)
-        who.frame = NSRect(x: column.minX, y: box.frame.minY - 6 - 20, width: column.width, height: 20)
-        talkScroll.frame = NSRect(x: column.minX, y: column.minY, width: column.width, height: max(0, who.frame.minY - 6 - column.minY))
+        talkScroll.frame = NSRect(x: column.minX, y: column.minY, width: column.width, height: max(0, box.frame.minY - 10 - column.minY))
         talk.frame.size.width = talkScroll.contentSize.width
-    }
-}
-
-/// CLAUDE, CODEX: a word to click, the one chosen underlined
-private final class WhoButton: NSView {
-    let word: String
-    let chosen: Bool
-    let action: () -> Void
-    private var hover = false { didSet { needsDisplay = true } }
-
-    init(_ word: String, chosen: Bool, _ action: @escaping () -> Void) {
-        self.word = word
-        self.chosen = chosen
-        self.action = action
-        super.init(frame: .zero)
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    override var isFlipped: Bool { true }
-
-    private var text: NSAttributedString {
-        var a: [NSAttributedString.Key: Any] = [.font: Fonts.buttons(11), .foregroundColor: NSColor(white: 1, alpha: 0.8 * (hover || chosen ? 1 : 0.75)), .kern: 3.3]
-        if chosen {
-            a[.underlineStyle] = NSUnderlineStyle.single.rawValue
-            a[.underlineColor] = Ink.text
-        }
-        return NSAttributedString(string: word, attributes: a)
-    }
-
-    override var intrinsicContentSize: NSSize { NSSize(width: ceil(text.size().width) + 10, height: 20) }
-
-    override func draw(_ dirtyRect: NSRect) { text.draw(at: NSPoint(x: 5, y: 3)) }
-
-    override func updateTrackingAreas() {
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
-    }
-
-    override func mouseEntered(with event: NSEvent) { hover = true }
-    override func mouseExited(with event: NSEvent) { hover = false }
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .pointingHand) }
-    override func mouseDown(with event: NSEvent) {}
-    override func mouseUp(with event: NSEvent) {
-        if bounds.contains(convert(event.locationInWindow, from: nil)) { action() }
     }
 }

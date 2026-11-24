@@ -274,3 +274,29 @@ func terminalColors() -> [SwiftTerm.Color] {
         return SwiftTerm.Color(red8: UInt16((v >> 16) & 255), green8: UInt16((v >> 8) & 255), blue8: UInt16(v & 255))
     }
 }
+
+/// bash's history (~/.bash_history: a command a line, "#1700000000" times between them), the newest last
+func bashHistory() -> [String] {
+    let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".bash_history")
+    guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+    let all = text.split(separator: "\n").map(String.init).filter { !$0.hasPrefix("#") && !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    var seen = Set<String>()
+    return all.reversed().filter { seen.insert($0).inserted }.reversed()
+}
+
+/// fish's history (~/.local/share/fish/fish_history: "- cmd: the command", \n and \\ escaped), the newest last
+func fishHistory() -> [String] {
+    let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/fish/fish_history")
+    guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+    var all: [String] = []
+    for line in text.split(separator: "\n") where line.hasPrefix("- cmd: ") {
+        var out = ""
+        var escaped = false
+        for ch in line.dropFirst(7) {
+            if escaped { out.append(ch == "n" ? "\n" : ch); escaped = false } else if ch == "\\" { escaped = true } else { out.append(ch) }
+        }
+        if !out.trimmingCharacters(in: .whitespaces).isEmpty { all.append(out) }
+    }
+    var seen = Set<String>()
+    return all.reversed().filter { seen.insert($0).inserted }.reversed()
+}

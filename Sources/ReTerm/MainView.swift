@@ -45,12 +45,62 @@ class ModePage: Flipped {
     /// NOVA (⌘K): a new conversation
     func nova() {}
 
+    /// the mode's choices (TERM: the shell, CHAT: the program) down the left column, the chosen one's name
+    /// at the window's foot
+    let choices = ChoiceDashes()
+    let foot = NSTextField(labelWithString: "")
+    /// what the foot says a moment instead (how to install one not installed)
+    private var flash: String?
+    private var flashTimer: Timer?
+    private var hovered: Choice?
+    /// after the chosen one's name at the foot (CHAT: ⋯ while an answer comes)
+    var footStatus: String { "" }
+
+    func setChoices(_ items: [Choice], chosen: String) {
+        choices.items = items
+        choices.chosen = chosen
+        window?.invalidateCursorRects(for: choices)
+        drawFoot()
+    }
+
+    /// one not installed chosen: how to install it, at the foot a moment
+    func sayNotInstalled(_ c: Choice) {
+        flash = c.hint.isEmpty ? "\(c.name) · not installed" : "\(c.name) · not installed: \(c.hint)"
+        flashTimer?.invalidate()
+        flashTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: false) { [weak self] _ in
+            self?.flash = nil
+            self?.drawFoot()
+        }
+        drawFoot()
+    }
+
+    func drawFoot() {
+        let text: String
+        if let flash {
+            text = flash
+        } else if let h = hovered {
+            text = h.ready ? h.name : (h.hint.isEmpty ? "\(h.name) · not installed" : "\(h.name) · not installed: \(h.hint)")
+        } else if let c = choices.items.first(where: { $0.id == choices.chosen }) {
+            text = c.name + footStatus
+        } else {
+            text = ""
+        }
+        foot.attributedStringValue = attributed(text, Fonts.buttons(11), NSColor(white: 1, alpha: 0.48), kern: 3.3, align: .center)
+    }
+
     override init(frame: NSRect) {
         super.init(frame: frame)
         search.placeholder = "Search"
         search.onChange = { [weak self] in self?.historyList?.query = self?.search.stringValue ?? "" }
         addSubview(modeName)
         addSubview(search)
+        foot.lineBreakMode = .byTruncatingTail
+        choices.onHover = { [weak self] c in
+            self?.hovered = c
+            self?.drawFoot()
+        }
+        addSubview(choices)
+        addSubview(foot)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -68,7 +118,16 @@ class ModePage: Flipped {
     }
 
     func layoutTitle() {
-        let W = bounds.width
+        let W = bounds.width, H = bounds.height
+        // the choices on the left buttons' column, between TERM and CHAT (as ReSurf's tabs); the foot at the
+        // window's foot, on the line the bottom buttons' feet stand on (in a small window, near the bottom edge)
+        let full = main?.full ?? false
+        let colTop = Spacing.innerTop(H) + 135
+        choices.frame = NSRect(x: Spacing.column(W) - 29, y: colTop, width: 58, height: max(0, H - 2 * colTop))
+        choices.isHidden = small || full
+        let footY = small ? H - 30 : H - Spacing.band(H) - 9
+        foot.frame = NSRect(x: W * 0.25, y: footY, width: W * 0.5, height: 18)
+        foot.isHidden = full
         modeName.attributedStringValue = attributed(t(modeWord), Fonts.buttons(12), NSColor(white: 1, alpha: 0.48), kern: 3.6, align: .center)
         modeName.isHidden = !small
         search.isHidden = !small
