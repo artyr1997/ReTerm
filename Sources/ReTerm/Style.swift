@@ -94,7 +94,7 @@ final class Lang {
     ]
 
     private let texts: [String: String] = [
-        "Search": "検索",
+        "Search": "検索", "Delete": "削除",
     ]
 
     // The language turning, as on a departures board: each letter runs through others (Latin and katakana)

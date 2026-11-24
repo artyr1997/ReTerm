@@ -4,7 +4,7 @@ import AppKit
 // as it comes. Through the programs installed and signed in (claude: Claude Code; codex: ChatGPT's): each
 // message runs the program once, the conversation going on by its session until ⌘K starts a new one. They run
 // in their own folder, with no tools: a conversation only. The ones before on the left, each to go on with;
-// ⇧↑ / ⇧↓ the one above / below. Kept between launches.
+// ⇧↑ / ⇧↓ the one above / below; ⇧⌘⌫ (or a right click on it on the left) deletes one. Kept between launches.
 
 private final class Message {
     let id: Int
@@ -86,6 +86,8 @@ final class ChatPage: ModePage {
     private var shownConversation: Conversation? { conversations.first { $0.id == shownId } }
     /// changed in this window since kept: what is written back (another window keeps its own)
     private var changed = Set<Double>()
+    /// deleted in this window: left out of what is kept from now on
+    private var deleted = Set<Double>()
     private var provider = "claude"
     private var available: [String] = []
     private var nextId = 1
@@ -101,6 +103,7 @@ final class ChatPage: ModePage {
         super.init(frame: frame)
         addSubview(title)
         history.pick = { [weak self] id in self?.show(Double(id) ?? 0) }
+        history.remove = { [weak self] id in self?.delete(Double(id) ?? 0) }
         addSubview(history)
         talk.onWidth = { [weak self] _ in self?.render() }
         addSubview(talkScroll)
@@ -165,14 +168,14 @@ final class ChatPage: ModePage {
 
     /// this window's changes written over what is kept (another window's kept too)
     private func keep() {
-        let saved = stored().conversations.filter { !changed.contains($0.id) }
+        let saved = stored().conversations.filter { !changed.contains($0.id) && !deleted.contains($0.id) }
         let mine = conversations.filter { changed.contains($0.id) && !$0.messages.isEmpty }
         let all = Array((saved + mine).sorted { $0.last > $1.last }.prefix(200))
         Saved.setJSON("chats", ["conversations": all.map(\.json), "provider": provider])
         Saved.remove("chat")
         changed.removeAll()
         // what another window said meanwhile: on the left here too
-        for c in all where !conversations.contains(where: { $0.id == c.id }) { conversations.append(c) }
+        for c in all where !conversations.contains(where: { $0.id == c.id }) && !deleted.contains(c.id) { conversations.append(c) }
         refreshHistory()
     }
 
@@ -470,6 +473,36 @@ final class ChatPage: ModePage {
         box.focus()
     }
 
+    /// A conversation deleted: its answer stopped if one is coming, gone from the left and from what is kept;
+    /// the one shown deleted, the one under it shown (the one above if it was the last, a new one if none)
+    private func delete(_ id: Double) {
+        guard let c = conversations.first(where: { $0.id == id }) else { return }
+        for m in c.messages { answers[m.id]?.process.terminate() }
+        if let a = answering, c.messages.contains(where: { $0.id == a }) { answering = nil }
+        let before = listed.filter { !$0.messages.isEmpty }
+        let at = before.firstIndex { $0.id == id }
+        conversations.removeAll { $0.id == id }
+        changed.remove(id)
+        deleted.insert(id)
+        commands = conversations.sorted { $0.last < $1.last }.flatMap { $0.messages.filter(\.me).map(\.text) }
+        historyAt = -1
+        keep()
+        if id == shownId {
+            let left = listed.filter { !$0.messages.isEmpty }
+            if let at, !left.isEmpty {
+                shownId = left[min(at, left.count - 1)].id
+                render(stick: true)
+                refreshHistory()
+                box.focus()
+            } else {
+                shownId = 0
+                fresh()
+                refreshHistory()
+            }
+        }
+        drawWho()
+    }
+
     /// ⇧↑ / ⇧↓: the conversation above / below on the left
     private func step(_ by: Int) {
         let all = listed
@@ -486,6 +519,9 @@ final class ChatPage: ModePage {
             if answering != nil { stop() } else if mods == .control { box.string = "" } else { return false }
         case (40, .command), (37, .control): // ⌘K, ⌃L
             fresh()
+        case (51, [.command, .shift]): // ⇧⌘⌫: the conversation shown deleted
+            guard let c = shownConversation, !c.messages.isEmpty else { return false }
+            delete(c.id)
         case (126, .shift): step(-1)
         case (125, .shift): step(1)
         case (126, []) where box.caretOnFirstLine:

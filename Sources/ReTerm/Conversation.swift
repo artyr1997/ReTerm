@@ -18,6 +18,8 @@ final class HistoryList: Flipped {
     var items: [Item] = [] { didSet { relayout() } }
     var shown: String? { didSet { doc.needsDisplay = true } }
     var pick: ((String) -> Void)?
+    /// a row deleted (a right click on it, Delete): only where the page lets its rows go (CHAT's conversations)
+    var remove: ((String) -> Void)?
     /// only the ones whose name has this (the search)
     var query = "" { didSet { relayout() } }
     /// a small window: the rows as ReNote's notes (16, further apart)
@@ -70,6 +72,24 @@ final class HistoryList: Flipped {
 
     override func draw(_ dirtyRect: NSRect) {}
 
+    /// a right click on a row: a menu with Delete, where rows can go
+    func menu(at p: NSPoint) -> NSMenu? {
+        guard remove != nil else { return nil }
+        let i = Int(p.y / (rowH + gap))
+        let all = rows
+        guard i >= 0, i < all.count, let id = all[i].id else { return nil }
+        let menu = NSMenu()
+        let item = NSMenuItem(title: Lang.shared.tx("Delete"), action: #selector(deleteRow(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = id
+        menu.addItem(item)
+        return menu
+    }
+
+    @objc private func deleteRow(_ sender: NSMenuItem) {
+        if let id = sender.representedObject as? String { remove?(id) }
+    }
+
     @objc private func clicked(_ g: NSClickGestureRecognizer) {
         let p = g.location(in: doc)
         let i = Int(p.y / (rowH + gap))
@@ -117,6 +137,7 @@ final class HistoryList: Flipped {
 private final class RowsDrawer: Flipped {
     weak var list: HistoryList?
     override func draw(_ dirtyRect: NSRect) { list?.drawRows(in: self) }
+    override func menu(for event: NSEvent) -> NSMenu? { list?.menu(at: convert(event.locationInWindow, from: nil)) }
 }
 
 // ── the conversation: its newest at the bottom; selectable; its edges fading where more is hidden ──
