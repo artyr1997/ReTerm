@@ -118,6 +118,7 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
         }
         addSubview(title)
         history.pick = { [weak self] id in self?.pick(id) }
+        history.remove = { [weak self] id in self?.deleteSession(id) }
         addSubview(history)
         talk.onWidth = { [weak self] _ in self?.render() }
         addSubview(talkScroll)
@@ -578,6 +579,32 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
         box.focus()
     }
 
+    /// A session deleted (⇧⌘⌫, or a right click on it on the left): gone from the left and from what is kept.
+    /// This one deleted: its commands and answers cleared (the shell, and a command running, go on), and the
+    /// session under it shown (the one above if it was the last; none left, a new one)
+    private func deleteSession(_ id: String) {
+        guard let n = Double(id) else { return }
+        let before = listed.map(\.id)
+        Saved.setJSON("sessions", stored().filter { ($0["id"] as? Double) != n })
+        guard n == sessionId else {
+            past = stored().filter { ($0["id"] as? Double) != sessionId }
+            refreshHistory()
+            return box.focus()
+        }
+        blocks = blocks.filter { $0.live != nil }
+        sessionId = Date().timeIntervalSince1970 * 1000
+        started = sessionId
+        past = stored()
+        let left = before.filter { $0 != n }
+        if let at = before.firstIndex(of: n), !left.isEmpty {
+            pick(String(left[min(at, left.count - 1)]))
+        } else {
+            render(stick: true)
+            refreshHistory()
+            box.focus()
+        }
+    }
+
     /// ⇧↑ / ⇧↓: the session above / below on the left
     private func step(_ by: Int) {
         let all = listed
@@ -664,6 +691,9 @@ final class TermPage: ModePage, LocalProcessDelegate, TerminalViewDelegate {
             send([0x1a])
         case (37, .control), (40, .command): // ⌃L, ⌘K
             newSession()
+        case (51, [.command, .shift]): // ⇧⌘⌫: this session deleted
+            guard blocks.contains(where: { $0.command != nil }) else { return false }
+            deleteSession(String(sessionId))
         case (126, .shift): step(-1)
         case (125, .shift): step(1)
         case (126, []) where box.caretOnFirstLine:
