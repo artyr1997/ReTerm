@@ -11,7 +11,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Spacing.start()
         // keys of one's own, as set in ReDesk's keys popup (⌘/)
         OwnKeys.start(app: "ReTerm", standard: [
-            "newWindow": .init(45, "n"), "wholeWindow": .init(3, "f", [.command, .shift]), "newConversation": .init(40, "k"),
+            "newWindow": .init(45, "n"), "term": .init(17, "t", [.command, .shift]), "chat": .init(8, "c", [.command, .shift]),
+            "wholeWindow": .init(3, "f", [.command, .shift]), "newConversation": .init(40, "k"), "conversationUp": .init(126, "\u{F700}", .shift),
+            "conversationDown": .init(125, "\u{F701}", .shift), "deleteConversation": .init(51, "\u{7F}", [.command, .shift]), "up": .init(126, "\u{F700}", []),
+            "down": .init(125, "\u{F701}", []), "tab": .init(48, "\t", []), "stop": .init(8, "c", .control),
+            "end": .init(2, "d", .control), "suspend": .init(6, "z", .control), "bigger": .init(24, "="),
+            "smaller": .init(27, "-"), "actualSize": .init(29, "0"), "send": .init(36, "\r", []),
+            "newLine": .init(36, "\r", .shift), "esc": .init(53, "\u{1B}", []),
         ])
         tick("did finish launching")
         NSApp.appearance = NSAppearance(named: .darkAqua)
